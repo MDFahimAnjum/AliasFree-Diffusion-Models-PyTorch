@@ -1,0 +1,5 @@
+/results/DDPM_Uncondtional/
+/data/Linnaeus 5 64X64/
+/runs/
+*.zip
+/__pycache__/
