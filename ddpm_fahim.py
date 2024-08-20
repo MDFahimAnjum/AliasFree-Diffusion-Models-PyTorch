@@ -8,17 +8,16 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 from torch import optim
 from utils import *
-#from modules import UNet
 import logging
 #from torch.utils.tensorboard import SummaryWriter
 from utils import get_data
 from torchvision.utils import save_image
-
+import numpy as np 
 
 #%% param class
 
 class argument:
-    def __init__(self,run_name=None,epochs=None,batch_size=None,image_size=None,dataset_path=None,device=None,lr=None):
+    def __init__(self,run_name=None,epochs=None,batch_size=None,image_size=None,dataset_path=None,device=None,lr=None,noise_steps=None):
         super().__init__()
         self.run_name = run_name
         self.epochs = epochs
@@ -27,6 +26,7 @@ class argument:
         self.dataset_path = dataset_path
         self.device = device
         self.lr = lr
+        self.noise_steps=noise_steps
 
 
 #%% Modules for the model
@@ -367,7 +367,7 @@ def train(args,model_path=None):
         model.load_state_dict(ckpt)
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     mse = nn.MSELoss()
-    diffusion = Diffusion(img_size=args.image_size, device=device)
+    diffusion = Diffusion(noise_steps=args.noise_steps,img_size=args.image_size, device=device)
     #logger = SummaryWriter(os.path.join("runs", args.run_name))
     l = len(dataloader)
 
@@ -401,26 +401,28 @@ print(f' Model save path: {modelpath}')
 
 #%% test model 
 
-# net = UNet(device="cpu")
-net = UNet_conditional(num_classes=10, device="cpu")
+ net = UNet(device="cpu")
+#net = UNet_conditional(num_classes=10, device="cpu")
 print(sum([p.numel() for p in net.parameters()]))
 x = torch.randn(3, 3, 64, 64)
 t = x.new_tensor([500] * x.shape[0]).long()
 y = x.new_tensor([1] * x.shape[0]).long()
-print(net(x, t, y).shape)
-
-#%% test noise 
+#print(net(x, t, y).shape)
+print(net(x, t).shape)
+#%% test noise
 args = argument()
 args.batch_size = 1
 args.image_size = 64
 args.device = "cuda"
 args.lr = 3e-4
 args.dataset_path = datapath
+args.noise_steps=100
+
 dataloader = get_data(args)
 image = next(iter(dataloader))[0]
 image = image.to(args.device)
-t = torch.Tensor([0, 50, 100, 150, 200, 300, 600, 700, 999]).long()
-diffusion = Diffusion(img_size=args.image_size, device=args.device)
+t = torch.Tensor(np.round(np.linspace(0,args.noise_steps-1,9))).long().to(args.device)
+diffusion = Diffusion(noise_steps=args.noise_steps,img_size=args.image_size, device=args.device)
 noised_image, _ = diffusion.noise_images(image, t)
 plot_images(noised_image)
 
@@ -433,6 +435,8 @@ args.image_size = 64
 args.dataset_path = datapath
 args.device = "cuda"
 args.lr = 3e-4
+args.noise_steps=100
+
 train(args,model_path=modelpath)
 
 #%% sample images
