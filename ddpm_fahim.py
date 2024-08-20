@@ -13,7 +13,19 @@ import logging
 from utils import get_data
 from torchvision.utils import save_image
 import numpy as np 
+import random
 
+#%% for random seed
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # If you are using multi-GPU.
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+random_seed=42
+set_seed(random_seed)
 #%% param class
 
 class argument:
@@ -362,9 +374,9 @@ def train(args,model_path=None):
     device = args.device
     dataloader = get_data(args)
     model = UNet(device=device).to(device)
-    if(model_path):
-        ckpt = torch.load(model_path)
-        model.load_state_dict(ckpt)
+    #if(model_path):
+    #    ckpt = torch.load(model_path)
+    #    model.load_state_dict(ckpt)
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     mse = nn.MSELoss()
     diffusion = Diffusion(noise_steps=args.noise_steps,img_size=args.image_size, device=device)
@@ -390,7 +402,7 @@ def train(args,model_path=None):
 
         sampled_images = diffusion.sample(model, n=images.shape[0])
         save_images(sampled_images, os.path.join("results", args.run_name, f"{epoch}.jpg"))
-        torch.save(model.state_dict(), os.path.join("models", args.run_name, f"ckpt.pt"))
+        torch.save(model.state_dict(), model_path)
 
 #%% path
 current_directory = os.getcwd() #parameters
@@ -401,7 +413,7 @@ print(f' Model save path: {modelpath}')
 
 #%% test model 
 
- net = UNet(device="cpu")
+net = UNet(device="cpu")
 #net = UNet_conditional(num_classes=10, device="cpu")
 print(sum([p.numel() for p in net.parameters()]))
 x = torch.randn(3, 3, 64, 64)
@@ -416,7 +428,9 @@ args.image_size = 64
 args.device = "cuda"
 args.lr = 3e-4
 args.dataset_path = datapath
-args.noise_steps=100
+args.noise_steps=1000
+
+set_seed(random_seed)
 
 dataloader = get_data(args)
 image = next(iter(dataloader))[0]
@@ -429,17 +443,20 @@ plot_images(noised_image)
 #%% train model
 args = argument()
 args.run_name = "DDPM_Uncondtional"
-args.epochs = 2
+args.epochs = 5
 args.batch_size = 4  #6  #12
 args.image_size = 64
 args.dataset_path = datapath
 args.device = "cuda"
 args.lr = 3e-4
-args.noise_steps=100
+args.noise_steps=1000
+
+set_seed(random_seed)
 
 train(args,model_path=modelpath)
 
 #%% sample images
+set_seed(random_seed)
 model = UNet().to(args.device)
 ckpt = torch.load(modelpath)
 model.load_state_dict(ckpt)
@@ -447,6 +464,7 @@ x = diffusion.sample(model, n=6)
 plot_images(x)
 
 #%% denoise image
+set_seed(random_seed)
 denoise_img = diffusion.revert(model, n=1)
 plot_images(denoise_img)
 denoise_img.shape
