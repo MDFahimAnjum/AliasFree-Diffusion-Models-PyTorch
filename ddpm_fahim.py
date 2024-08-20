@@ -10,7 +10,7 @@ from torch import optim
 from utils import *
 #from modules import UNet
 import logging
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 from utils import get_data
 from torchvision.utils import save_image
 
@@ -368,7 +368,7 @@ def train(args,model_path=None):
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     mse = nn.MSELoss()
     diffusion = Diffusion(img_size=args.image_size, device=device)
-    logger = SummaryWriter(os.path.join("runs", args.run_name))
+    #logger = SummaryWriter(os.path.join("runs", args.run_name))
     l = len(dataloader)
 
     for epoch in range(args.epochs):
@@ -386,7 +386,7 @@ def train(args,model_path=None):
             optimizer.step()
 
             pbar.set_postfix(MSE=loss.item())
-            logger.add_scalar("MSE", loss.item(), global_step=epoch * l + i)
+            #logger.add_scalar("MSE", loss.item(), global_step=epoch * l + i)
 
         sampled_images = diffusion.sample(model, n=images.shape[0])
         save_images(sampled_images, os.path.join("results", args.run_name, f"{epoch}.jpg"))
@@ -446,3 +446,4 @@ plot_images(x)
 denoise_img = diffusion.revert(model, n=1)
 plot_images(denoise_img)
 denoise_img.shape
+# %%
