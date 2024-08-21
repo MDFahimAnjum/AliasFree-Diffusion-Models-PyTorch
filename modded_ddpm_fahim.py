@@ -1,4 +1,6 @@
 
+# dataset: http://chaladze.com/l5/
+
 #%% imports
 import os
 import torch
@@ -16,6 +18,7 @@ import numpy as np
 from scipy.signal import firwin
 from scipy.signal.windows import kaiser
 import random
+from scipy.special import j1
 
 #%% for random seed
 def set_seed(seed):
@@ -42,6 +45,79 @@ class argument:
         self.device = device
         self.lr = lr
         self.noise_steps=noise_steps
+
+
+#%% Filters
+
+def jinc_filter_2d(size=6, beta=14):
+    # Similar to the sinc filter, create a 2D jinc filter (simplified)
+    sinc_filter_1d = np.sinc(np.linspace(-size / 2, size / 2, size))
+    window = kaiser(size, beta)
+    jinc_filter_2d = np.outer(sinc_filter_1d * window, sinc_filter_1d * window)
+    return torch.tensor(jinc_filter_2d, dtype=torch.float32)
+
+
+def circularLowpassKernel(omega_c=np.pi, N=6,beta=None):  # omega = cutoff frequency in radians (pi is max), N = horizontal size of the kernel, also its vertical size.
+    with np.errstate(divide='ignore',invalid='ignore'):
+        kernel = np.fromfunction(lambda x, y: omega_c*j1(omega_c*np.sqrt((x - (N - 1)/2)**2 + (y - (N - 1)/2)**2))/(2*np.pi*np.sqrt((x - (N - 1)/2)**2 + (y - (N - 1)/2)**2)), [N, N])
+    if N % 2:
+        kernel[(N - 1)//2, (N - 1)//2] = omega_c**2/(4*np.pi)
+    
+    if beta is not None:
+        # Create a 1D Kaiser window
+        kaiser_window_1d = np.kaiser(N, beta)
+
+        # Generate a 2D Kaiser window by outer product
+        kaiser_window_2d = np.outer(kaiser_window_1d, kaiser_window_1d)
+
+        # Apply the Kaiser window to the kernel
+        kernel *= kaiser_window_2d
+    
+    return torch.tensor(kernel, dtype=torch.float32)
+
+def plot_filter_and_response(kernel,show_freq=True):
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+    
+    # Plot the kernel
+    cax1 = axs[0].imshow(kernel, vmin=-1, vmax=1, cmap='bwr')
+    axs[0].set_title('2D Filter')
+    fig.colorbar(cax1, ax=axs[0])
+    
+    # Compute the frequency response
+    freq_response = np.fft.fftshift(np.fft.fft2(kernel))
+    magnitude_response = np.abs(freq_response)
+    
+    # Plot the frequency response
+    cax2 = axs[1].imshow(magnitude_response, cmap='viridis')
+    axs[1].set_title('Frequency Response')
+
+    # Set frequency axis labels
+    if show_freq:
+        num_rows, num_cols = kernel.shape
+        freq_x = np.fft.fftshift(np.fft.fftfreq(num_cols))
+        freq_y = np.fft.fftshift(np.fft.fftfreq(num_rows))
+        axs[1].set_xticks([0, num_cols//4, num_cols//2, 3*num_cols//4, num_cols-1])
+        axs[1].set_xticklabels([f'{freq:.2f}' for freq in freq_x[axs[1].get_xticks().astype(int)]])
+        axs[1].set_yticks([0, num_rows//4, num_rows//2, 3*num_rows//4, num_rows-1])
+        axs[1].set_yticklabels([f'{freq:.2f}' for freq in freq_y[axs[1].get_yticks().astype(int)]])
+
+    fig.colorbar(cax2, ax=axs[1])
+    
+    plt.tight_layout()
+    plt.show()
+
+
+filter_size=7
+beta=2
+omega_c = np.pi/2  # Cutoff frequency in radians <= pi
+
+filters=[]
+filters.append( jinc_filter_2d(filter_size, beta))
+filters.append(circularLowpassKernel(omega_c, filter_size))
+filters.append(circularLowpassKernel(omega_c, filter_size,beta=beta))
+
+for filter in filters:  
+    plot_filter_and_response(filter)
 
 
 #%% Modules for the model
@@ -119,19 +195,14 @@ class DoubleConv(nn.Module):
             return self.double_conv(x)
 
 
-def jinc_filter_2d(size=6, beta=14):
-    # Similar to the sinc filter, create a 2D jinc filter (simplified)
-    sinc_filter_1d = np.sinc(np.linspace(-size / 2, size / 2, size))
-    window = kaiser(size, beta)
-    jinc_filter_2d = np.outer(sinc_filter_1d * window, sinc_filter_1d * window)
-    return torch.tensor(jinc_filter_2d, dtype=torch.float32)
 
 class Down(nn.Module):
-    def __init__(self, in_channels, out_channels, emb_dim=256, filter_size=6, beta=14):
+    def __init__(self, in_channels, out_channels, emb_dim=256, filter_size=6, beta=14,omega_c=np.pi/2):
         super().__init__()
 
         # Generate the 2D Jinc filter with Kaiser window
-        self.jinc_filter = jinc_filter_2d(filter_size, beta)
+        #self.jinc_filter = jinc_filter_2d(filter_size, beta)
+        self.jinc_filter = circularLowpassKernel(omega_c=omega_c,N=filter_size, beta=beta)
 
         self.conv = nn.Sequential(
             DoubleConv(in_channels, in_channels, residual=True),
@@ -162,19 +233,13 @@ class Down(nn.Module):
         return x
 
 
-def kaiser_sinc_filter_2d(size=6, beta=14):
-    # Create a 1D sinc filter and extend it to 2D by outer product
-    sinc_filter_1d = np.sinc(np.linspace(-size / 2, size / 2, size))
-    window = kaiser(size, beta)
-    sinc_filter_2d = np.outer(sinc_filter_1d * window, sinc_filter_1d * window)
-    return torch.tensor(sinc_filter_2d, dtype=torch.float32)
-
 class Up(nn.Module):
-    def __init__(self, in_channels, out_channels, emb_dim=256, filter_size=6, beta=14):
+    def __init__(self, in_channels, out_channels, emb_dim=256, filter_size=6, beta=14,omega_c=np.pi):
         super().__init__()
 
         # Generate the 2D sinc filter with Kaiser window
-        self.sinc_filter = kaiser_sinc_filter_2d(filter_size, beta)
+        #self.sinc_filter = jinc_filter_2d(filter_size, beta)
+        self.sinc_filter = circularLowpassKernel(omega_c=omega_c,N=filter_size, beta=beta)
 
         self.conv = nn.Sequential(
             DoubleConv(in_channels, in_channels, residual=True),
@@ -212,23 +277,27 @@ class UNet(nn.Module):
         super().__init__()
         self.device = device
         self.time_dim = time_dim
+        self.filter_kernel_size=7
+        self.filter_kaiser_beta=4 #14 # None
+        self.omega_c_down=np.pi/2 # Downsample Cutoff frequency in radians <= pi
+        self.omega_c_up=np.pi # Upsample Cutoff frequency in radians <= pi
         self.inc = DoubleConv(c_in, 64)
-        self.down1 = Down(64, 128)
+        self.down1 = Down(64, 128,filter_size=self.filter_kernel_size, beta=self.filter_kaiser_beta, omega_c=self.omega_c_down)
         self.sa1 = SelfAttention(128, 32)
-        self.down2 = Down(128, 256)
+        self.down2 = Down(128, 256,filter_size=self.filter_kernel_size, beta=self.filter_kaiser_beta, omega_c=self.omega_c_down)
         self.sa2 = SelfAttention(256, 16)
-        self.down3 = Down(256, 256)
+        self.down3 = Down(256, 256,filter_size=self.filter_kernel_size, beta=self.filter_kaiser_beta, omega_c=self.omega_c_down)
         self.sa3 = SelfAttention(256, 8)
 
         self.bot1 = DoubleConv(256, 512)
         self.bot2 = DoubleConv(512, 512)
         self.bot3 = DoubleConv(512, 256)
 
-        self.up1 = Up(512, 128)
+        self.up1 = Up(512, 128,filter_size=self.filter_kernel_size, beta=self.filter_kaiser_beta, omega_c=self.omega_c_up)
         self.sa4 = SelfAttention(128, 16)
-        self.up2 = Up(256, 64)
+        self.up2 = Up(256, 64,filter_size=self.filter_kernel_size, beta=self.filter_kaiser_beta, omega_c=self.omega_c_up)
         self.sa5 = SelfAttention(64, 32)
-        self.up3 = Up(128, 64)
+        self.up3 = Up(128, 64,filter_size=self.filter_kernel_size, beta=self.filter_kaiser_beta, omega_c=self.omega_c_up)
         self.sa6 = SelfAttention(64, 64)
         self.outc = nn.Conv2d(64, c_out, kernel_size=1)
 
@@ -482,10 +551,100 @@ diffusion = Diffusion(noise_steps=args.noise_steps,img_size=args.image_size, dev
 noised_image, _ = diffusion.noise_images(image, t)
 plot_images(noised_image)
 
+
+#%% test filter
+# load an image
+set_seed(random_seed)
+dataloader = get_data(args)
+image = next(iter(dataloader))[0]
+x=image
+
+images=[]
+images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # original
+
+#filter params
+omega_c_down=np.pi/2
+omega_c_up=np.pi
+filter_size=7
+beta=1
+
+#downsample
+jinc_filter = circularLowpassKernel(omega_c=omega_c_down,N=filter_size, beta=beta)
+jinc_filter = jinc_filter.repeat(x.size(1), 1, 1, 1)  # Match number of channels
+x = F.conv2d(x, jinc_filter, padding='same', groups=x.size(1))
+images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # down filtered
+x = F.max_pool2d(x, 2)
+images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # downsampled
+
+#upsample
+x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
+images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # upsampled
+sinc_filter = circularLowpassKernel(omega_c=omega_c_up,N=filter_size, beta=beta)
+sinc_filter = sinc_filter.repeat(x.size(1), 1, 1, 1)  # Match number of channels
+x = F.conv2d(x, sinc_filter, padding='same', groups=x.size(1))
+images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # up filtered
+
+
+titles=[
+    'original',
+    'downfilter',
+    'downsample',
+    'upsample',
+    'upfilter'
+]
+
+fig, axs = plt.subplots(1, len(images), figsize=(3*len(images), 3))
+
+for i,img in enumerate(images):
+    axs[i].imshow(img)
+    axs[i].set_title(titles[i])
+    axs[i].axis('off')
+
+plt.tight_layout()
+plt.show()
+
+#%% test no filter
+# load an image
+set_seed(random_seed)
+dataloader = get_data(args)
+image = next(iter(dataloader))[0]
+x=image
+
+images=[]
+images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # original
+
+
+#downsample
+x = F.max_pool2d(x, 2)
+images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # downsampled
+
+#upsample
+x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
+images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # upsampled
+
+
+titles=[
+    'original',
+    'downsample',
+    'upsample'
+]
+
+fig, axs = plt.subplots(1, len(images), figsize=(3*len(images), 3))
+
+for i,img in enumerate(images):
+    axs[i].imshow(img)
+    axs[i].set_title(titles[i])
+    axs[i].axis('off')
+
+plt.tight_layout()
+plt.show()
+
+
+
 #%% train model
 args = argument()
 args.run_name = "DDPM_Uncondtional"
-args.epochs = 5
+args.epochs = 20
 args.batch_size = 4  #6  #12
 args.image_size = 64
 args.dataset_path = datapath
