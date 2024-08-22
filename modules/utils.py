@@ -114,10 +114,10 @@ def save_dataset_MNIST(path_str,dataset):
         pil_image = to_pil(image)
         
         # Define the image filename
-        filename = save_dir / f"image_{i}.jpg"
+        filename = save_dir / f"image_{i}.png"
         
         # Save the image
-        pil_image.save(filename, format="JPEG")
+        pil_image.save(filename, format="PNG")
 
         # Optionally, print out the filename to confirm
         print(f"Saved: {filename}")
@@ -139,10 +139,10 @@ def save_gen_images(path_str,data,fileno):
         pil_image = to_pil(image)
         
         # Define the image filename
-        filename = save_dir / f"image_{fileno[i]}.jpg"
+        filename = save_dir / f"image_{fileno[i]}.png"
         
         # Save the image
-        pil_image.save(filename, format="JPEG")
+        pil_image.save(filename, format="PNG")
 
         # Optionally, print out the filename to confirm
         print(f"Saved: {filename}")
