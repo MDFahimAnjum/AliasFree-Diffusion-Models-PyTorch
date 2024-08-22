@@ -37,8 +37,9 @@ for filter in filters:
 #%% path
 logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO, datefmt="%I:%M:%S")
 current_directory = os.getcwd() #parameters
-datapath = os.path.join(current_directory,"data\Linnaeus 5 64X64")
-modelpath= os.path.join(current_directory,"models\DDPM_Uncondtional_F\ckpt2.pt")
+#datapath = os.path.join(current_directory,"data\Linnaeus 5 64X64")
+datapath = os.path.join(current_directory,"data\MNIST\mnist_train_small.csv")
+modelpath= os.path.join(current_directory,"models\DDPM_Uncondtional_F_MNIST\ckpt_F_MNIST.pt")
 print(f' Dataset path: {datapath}')
 print(f' Model save path: {modelpath}')
 
@@ -51,7 +52,7 @@ else:
 
 args = argument()
 args.image_size = 64
-args.image_channels=3
+args.image_channels=1 #3
 
 f_settings={}
 f_settings['kernel_size']=7
@@ -73,7 +74,7 @@ print(net(x, t).shape)
 args = argument()
 args.batch_size = 1
 args.image_size = 64
-args.image_channels=3
+args.image_channels= 1 #3
 args.device = "cuda"
 args.lr = 3e-4
 args.dataset_path = datapath
@@ -81,7 +82,8 @@ args.noise_steps=1000
 
 set_seed(random_seed)
 
-dataloader = get_data(args)
+#dataloader, dataset = get_data(args)
+dataloader, dataset = get_data_MNIST(args)
 image = next(iter(dataloader))[0]
 image = image.to(args.device)
 t = torch.Tensor(np.round(np.linspace(0,args.noise_steps-1,9))).long().to(args.device)
@@ -95,34 +97,43 @@ plot_images(noised_image)
 #%% test filter
 # load an image
 set_seed(random_seed)
-dataloader = get_data(args)
+#dataloader, dataset = get_data(args)
+dataloader, dataset = get_data_MNIST(args)
 image = next(iter(dataloader))[0]
 x=image
 
+def image_data(x):
+    if x.shape[1]>1:
+        return x.squeeze().permute(1, 2, 0).cpu().numpy()
+    elif x.shape[1]==1:
+        return x.squeeze().cpu().numpy()
+    else:
+        return None
+
 images=[]
-images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # original
+images.append(image_data(x)) # original
 
 #filter params
 omega_c_down=np.pi/2
 omega_c_up=np.pi
 filter_size=7
-beta=1
+beta=8
 
 #downsample
 jinc_filter = circularLowpassKernel(omega_c=omega_c_down,N=filter_size, beta=beta)
 jinc_filter = jinc_filter.repeat(x.size(1), 1, 1, 1)  # Match number of channels
 x = F.conv2d(x, jinc_filter, padding='same', groups=x.size(1))
-images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # down filtered
+images.append(image_data(x)) # down filtered
 x = F.max_pool2d(x, 2)
-images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # downsampled
+images.append(image_data(x)) # downsampled
 
 #upsample
 x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
-images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # upsampled
+images.append(image_data(x)) # upsampled
 sinc_filter = circularLowpassKernel(omega_c=omega_c_up,N=filter_size, beta=beta)
 sinc_filter = sinc_filter.repeat(x.size(1), 1, 1, 1)  # Match number of channels
 x = F.conv2d(x, sinc_filter, padding='same', groups=x.size(1))
-images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # up filtered
+images.append(image_data(x)) # up filtered
 
 
 titles=[
@@ -136,7 +147,9 @@ titles=[
 fig, axs = plt.subplots(1, len(images), figsize=(3*len(images), 3))
 
 for i,img in enumerate(images):
-    axs[i].imshow(img)
+    axs[i].imshow(img,
+                  cmap='gray'
+                  )
     axs[i].set_title(titles[i])
     axs[i].axis('off')
 
@@ -146,21 +159,22 @@ plt.show()
 #%% test no filter
 # load an image
 set_seed(random_seed)
-dataloader = get_data(args)
+#dataloader, dataset = get_data(args)
+dataloader, dataset = get_data_MNIST(args)
 image = next(iter(dataloader))[0]
 x=image
 
 images=[]
-images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # original
+images.append(image_data(x)) # original
 
 
 #downsample
 x = F.max_pool2d(x, 2)
-images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # downsampled
+images.append(image_data(x)) # downsampled
 
 #upsample
 x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
-images.append(x.squeeze().permute(1, 2, 0).cpu().numpy()) # upsampled
+images.append(image_data(x)) # upsampled
 
 
 titles=[
@@ -172,7 +186,9 @@ titles=[
 fig, axs = plt.subplots(1, len(images), figsize=(3*len(images), 3))
 
 for i,img in enumerate(images):
-    axs[i].imshow(img)
+    axs[i].imshow(img,
+                  cmap='gray'
+                  )
     axs[i].set_title(titles[i])
     axs[i].axis('off')
 
@@ -183,28 +199,33 @@ plt.show()
 
 #%% train model
 args = argument()
-args.run_name = "DDPM_Uncondtional_F"
-args.epochs = 2
-args.batch_size = 4  #6  #12
-args.image_size = 64
-args.image_channels=3
+args.run_name = "DDPM_Uncondtional_F_MNIST"
+args.epochs = 100
+args.batch_size = 64  #6  #12
+args.image_size = 32 #64
+args.image_channels=1 #3
 args.dataset_path = datapath
 args.device = "cuda"
 args.lr = 3e-4
 args.noise_steps=1000
+args.image_gen_n=8
 
 f_settings={}
 f_settings['kernel_size']=7
-f_settings['kaiser_beta']=4
+f_settings['kaiser_beta']=8
 f_settings['omega_c_down'] = np.pi/2
 f_settings['omega_c_up'] = np.pi
 
 set_seed(random_seed)
-dataloader = get_data(args)
+# dataloader, dataset = get_data(args)
+dataloader, dataset = get_data_MNIST(args)
 model = UNet(c_in=args.image_channels, c_out=args.image_channels,
              image_size=args.image_size,f_settings=f_settings,device=args.device).to(args.device)
 diffusion = Diffusion(noise_steps=args.noise_steps,img_size=args.image_size, device=args.device)
-train(args,model_path=modelpath,dataloader=dataloader,model=model,diffusion=diffusion)
+loss_all=train(args,model_path=modelpath,dataloader=dataloader,model=model,diffusion=diffusion)
+
+#%% inspect training loss
+plot_loss(loss_all)
 
 #%% sample images
 set_seed(random_seed)
@@ -212,12 +233,13 @@ model = UNet(c_in=args.image_channels, c_out=args.image_channels,
              image_size=args.image_size,f_settings=f_settings,device=args.device).to(args.device)
 ckpt = torch.load(modelpath)
 model.load_state_dict(ckpt)
-x = diffusion.sample(model, n=6)
+x = diffusion.sample(model, n=6,image_channels=args.image_channels)
 plot_images(x)
 
 #%% denoise image
 set_seed(random_seed)
-denoise_img = diffusion.revert(model, n=1)
+denoise_img = diffusion.revert(model, n=1,image_channels=args.image_channels)
 plot_images(denoise_img)
 denoise_img.shape
-# %%
+# %% save training images
+_, dataset = get_data_MNIST(args)

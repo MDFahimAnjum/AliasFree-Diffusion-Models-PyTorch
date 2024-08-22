@@ -56,8 +56,8 @@ args.noise_steps=1000
 
 set_seed(random_seed)
 
-#dataloader = get_data(args)
-dataloader = get_data_MNIST(args)
+#dataloader, dataset = get_data(args)
+dataloader, dataset = get_data_MNIST(args)
 image = next(iter(dataloader))[0]
 image = image.to(args.device)
 t = torch.Tensor(np.round(np.linspace(0,args.noise_steps-1,9))).long().to(args.device)
@@ -81,8 +81,8 @@ args.noise_steps=1000
 args.image_gen_n=8
 
 set_seed(random_seed)
-# dataloader = get_data(args)
-dataloader = get_data_MNIST(args)
+# dataloader, dataset = get_data(args)
+dataloader, dataset = get_data_MNIST(args)
 model = UNet(c_in=args.image_channels, c_out=args.image_channels,image_size=args.image_size,device=args.device).to(args.device)
 diffusion = Diffusion(noise_steps=args.noise_steps,img_size=args.image_size, device=args.device)
 loss_all=train(args,model_path=modelpath,dataloader=dataloader,model=model,diffusion=diffusion)

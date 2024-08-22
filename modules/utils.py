@@ -43,7 +43,7 @@ def get_data(args):
     ])
     dataset = torchvision.datasets.ImageFolder(args.dataset_path, transform=transforms)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-    return dataloader
+    return dataloader, dataset
 
 
 def get_data_MNIST(args):
@@ -73,7 +73,7 @@ def get_data_MNIST(args):
     # Create DataLoader
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
-    return dataloader
+    return dataloader, dataset
 
 def setup_logging(run_name):
     os.makedirs("models", exist_ok=True)
