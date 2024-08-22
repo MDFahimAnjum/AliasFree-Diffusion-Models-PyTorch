@@ -9,6 +9,8 @@ from torch.utils.data import TensorDataset
 import torchvision.transforms as transforms
 import random
 import numpy as np 
+from torchvision.transforms import ToPILImage
+from pathlib import Path
 
 def plot_images(images):
     plt.figure(figsize=(32, 32))
@@ -97,3 +99,50 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)  # If you are using multi-GPU.
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+
+def save_dataset_MNIST(path_str,dataset):
+    save_dir = Path(path_str)
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    # Initialize transform to convert tensors to PIL images
+    to_pil = ToPILImage()
+
+    # Iterate over the dataset and save each image
+    for i, (image, label) in enumerate(dataset):
+        # Convert tensor to PIL image
+        pil_image = to_pil(image)
+        
+        # Define the image filename
+        filename = save_dir / f"image_{i}.jpg"
+        
+        # Save the image
+        pil_image.save(filename, format="JPEG")
+
+        # Optionally, print out the filename to confirm
+        print(f"Saved: {filename}")
+
+def save_gen_images(path_str,data,fileno):
+    save_dir = Path(path_str)
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    # Initialize transform to convert tensors to PIL images
+    to_pil = ToPILImage()
+
+    # Iterate over the dataset and save each image
+    for i in range(data.shape[0]):
+        if data.shape[1]==1: #gray images
+            image=data[i,:,:,:].squeeze(0).cpu().numpy()
+        else: # RGB images
+            image=data[i,:,:,:].cpu().numpy()
+        # Convert tensor to PIL image
+        pil_image = to_pil(image)
+        
+        # Define the image filename
+        filename = save_dir / f"image_{fileno[i]}.jpg"
+        
+        # Save the image
+        pil_image.save(filename, format="JPEG")
+
+        # Optionally, print out the filename to confirm
+        print(f"Saved: {filename}")

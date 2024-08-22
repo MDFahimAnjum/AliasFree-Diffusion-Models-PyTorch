@@ -197,7 +197,7 @@ plt.show()
 
 
 
-#%% train model
+#%% model parameters
 args = argument()
 args.run_name = "DDPM_Uncondtional_F_MNIST"
 args.epochs = 100
@@ -216,6 +216,7 @@ f_settings['kaiser_beta']=8
 f_settings['omega_c_down'] = np.pi/2
 f_settings['omega_c_up'] = np.pi
 
+#%% train model
 set_seed(random_seed)
 # dataloader, dataset = get_data(args)
 dataloader, dataset = get_data_MNIST(args)
@@ -227,12 +228,15 @@ loss_all=train(args,model_path=modelpath,dataloader=dataloader,model=model,diffu
 #%% inspect training loss
 plot_loss(loss_all)
 
-#%% sample images
+#%% load model
 set_seed(random_seed)
 model = UNet(c_in=args.image_channels, c_out=args.image_channels,
              image_size=args.image_size,f_settings=f_settings,device=args.device).to(args.device)
 ckpt = torch.load(modelpath)
 model.load_state_dict(ckpt)
+diffusion = Diffusion(noise_steps=args.noise_steps,img_size=args.image_size, device=args.device)
+
+#%% sample images
 x = diffusion.sample(model, n=6,image_channels=args.image_channels)
 plot_images(x)
 
@@ -241,5 +245,35 @@ set_seed(random_seed)
 denoise_img = diffusion.revert(model, n=1,image_channels=args.image_channels)
 plot_images(denoise_img)
 denoise_img.shape
-# %% save training images
+
+#%% load training images
+args = argument()
+args.run_name = "DDPM_Uncondtional_F_MNIST"
+args.epochs = 100
+args.batch_size = 64  #6  #12
+args.image_size = 32 #64
+args.image_channels=1 #3
+args.dataset_path = datapath
+args.device = "cuda"
+args.lr = 3e-4
+args.noise_steps=1000
+args.image_gen_n=8
 _, dataset = get_data_MNIST(args)
+
+#%% save original dataset
+current_directory = os.getcwd() #parameters
+savepath = os.path.join(current_directory,"images\original\MNIST")
+save_dataset_MNIST(savepath,dataset)
+
+# %% generate images and save
+current_directory = os.getcwd() #parameters
+savepath = os.path.join(current_directory,"images\generated\MNIST_F")
+per_batch=250
+total_gen=3000
+fileno_start=np.arange(0,total_gen,per_batch)
+for start_no in fileno_start:
+    fileno=np.arange(start_no,start_no+per_batch,1)
+    x = diffusion.sample(model, n=per_batch,image_channels=args.image_channels)
+    save_gen_images(savepath,x,fileno)
+
+# %%
