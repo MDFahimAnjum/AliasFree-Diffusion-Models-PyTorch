@@ -5,3 +5,5 @@
 /__pycache__/
 /data/MNIST-M/
 /data/MNIST/
+/results/DDPM_Uncondtional_F/
+/modules/__pycache__/
