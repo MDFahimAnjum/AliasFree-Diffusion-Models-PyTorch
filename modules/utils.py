@@ -81,6 +81,13 @@ def setup_logging(run_name):
     os.makedirs(os.path.join("models", run_name), exist_ok=True)
     os.makedirs(os.path.join("results", run_name), exist_ok=True)
 
+def plot_loss(loss_all):
+    plt.figure(figsize=(6, 6))
+    epochs_all=np.arange(1,len(loss_all)+1,1)
+    plt.plot(epochs_all,loss_all,marker="",label='loss')
+    plt.xlabel("epoch")
+    plt.ylabel("Loss")
+    plt.show()
 
 def set_seed(seed):
     random.seed(seed)
