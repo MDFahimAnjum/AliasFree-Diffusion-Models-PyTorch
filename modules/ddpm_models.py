@@ -80,10 +80,14 @@ class UNet(nn.Module):
                               out_channels=c_out, kernel_size=1)
         # for conditional Unet
         if num_classes is not None:
+            print("Conditional UNet")
             self.label_emb = nn.Embedding(num_classes, time_dim)
+        else:
+            print("Unconditional UNet")
         
         # modify the up and down sampling
         if f_settings is not None:
+            print("Modified UNet")
             self.filter_kernel_size=f_settings['kernel_size']#7
             self.filter_kaiser_beta=f_settings['kaiser_beta']#4 #14 # None
             self.omega_c_down=f_settings['omega_c_down'] #np.pi/2 # Downsample Cutoff frequency in radians <= pi
@@ -107,6 +111,8 @@ class UNet(nn.Module):
             self.up3 = Up_F(in_channels=int(2*self.image_size), 
                             out_channels=int(self.image_size),
                             filter_size=self.filter_kernel_size, beta=self.filter_kaiser_beta, omega_c=self.omega_c_up)
+        else:
+            print("Original UNet")
 
     def pos_encoding(self, t, channels):
         inv_freq = 1.0 / (

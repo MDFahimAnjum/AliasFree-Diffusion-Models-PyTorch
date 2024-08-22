@@ -9,7 +9,7 @@ from torch import optim
 
 # param class
 class argument:
-    def __init__(self,run_name=None,epochs=None,batch_size=None,image_size=None,image_channels=3,dataset_path=None,device=None,lr=None,noise_steps=None):
+    def __init__(self,run_name=None,epochs=None,batch_size=None,image_size=None,image_channels=3,dataset_path=None,device=None,lr=None,noise_steps=None,image_gen_n=4):
         super().__init__()
         self.run_name = run_name
         self.epochs = epochs
@@ -20,6 +20,7 @@ class argument:
         self.device = device
         self.lr = lr
         self.noise_steps=noise_steps
+        self.image_gen_n=image_gen_n
 
 
 class EMA:
@@ -233,6 +234,7 @@ def train(args,model_path=None,dataloader=None,model=None,diffusion=None):
     for epoch in range(args.epochs):
         logging.info(f"Starting epoch {epoch}:")
         pbar = tqdm(dataloader)
+        epoch_loss = 0.0
         for i, (images, _) in enumerate(pbar):
             images = images.to(device)
             t = diffusion.sample_timesteps(images.shape[0]).to(device)
@@ -243,11 +245,15 @@ def train(args,model_path=None,dataloader=None,model=None,diffusion=None):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            loss_all.append(loss)
+            epoch_loss += loss.item()
             pbar.set_postfix(MSE=loss.item())
             #logger.add_scalar("MSE", loss.item(), global_step=epoch * l + i)
 
-        sampled_images = diffusion.sample(model, n=images.shape[0],image_channels=args.image_channels)
+        # Calculate and store average loss for the epoch
+        avg_loss = epoch_loss / l
+        loss_all.append(avg_loss)
+        
+        sampled_images = diffusion.sample(model, n=args.image_gen_n,image_channels=args.image_channels)
         save_images(sampled_images, os.path.join("results", args.run_name, f"{epoch}.jpg"))
         torch.save(model.state_dict(), model_path)
     return loss_all
