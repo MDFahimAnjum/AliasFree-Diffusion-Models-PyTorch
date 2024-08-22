@@ -229,7 +229,7 @@ def train(args,model_path=None,dataloader=None,model=None,diffusion=None):
     mse = nn.MSELoss()
     #logger = SummaryWriter(os.path.join("runs", args.run_name))
     l = len(dataloader)
-
+    loss_all=[]
     for epoch in range(args.epochs):
         logging.info(f"Starting epoch {epoch}:")
         pbar = tqdm(dataloader)
@@ -243,10 +243,11 @@ def train(args,model_path=None,dataloader=None,model=None,diffusion=None):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
+            loss_all.append(loss)
             pbar.set_postfix(MSE=loss.item())
             #logger.add_scalar("MSE", loss.item(), global_step=epoch * l + i)
 
-        sampled_images = diffusion.sample(model, n=images.shape[0])
+        sampled_images = diffusion.sample(model, n=images.shape[0],image_channels=args.image_channels)
         save_images(sampled_images, os.path.join("results", args.run_name, f"{epoch}.jpg"))
         torch.save(model.state_dict(), model_path)
+    return loss_all
