@@ -222,7 +222,6 @@ class Up_F(nn.Module):
 def train(args,model_path=None,dataloader=None,model=None,diffusion=None):
     setup_logging(args.run_name)
     device = args.device
-    dataloader = get_data(args)
     #if(model_path):
     #    ckpt = torch.load(model_path)
     #    model.load_state_dict(ckpt)
