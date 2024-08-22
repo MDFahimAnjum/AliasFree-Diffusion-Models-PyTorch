@@ -29,12 +29,13 @@ set_seed(random_seed)
 #%% param class
 
 class argument:
-    def __init__(self,run_name=None,epochs=None,batch_size=None,image_size=None,dataset_path=None,device=None,lr=None,noise_steps=None):
+    def __init__(self,run_name=None,epochs=None,batch_size=None,image_size=None,image_channels=3,dataset_path=None,device=None,lr=None,noise_steps=None):
         super().__init__()
         self.run_name = run_name
         self.epochs = epochs
         self.batch_size = batch_size
         self.image_size = image_size
+        self.image_channels=image_channels
         self.dataset_path = dataset_path
         self.device = device
         self.lr = lr
@@ -164,31 +165,60 @@ class Up(nn.Module):
         emb = self.emb_layer(t)[:, :, None, None].repeat(1, 1, x.shape[-2], x.shape[-1])
         return x + emb
 
+"""
+| Layer              | Input Size (Channels x H x W)     | Output Size (Channels x H x W)        | Notes                                                                                                                                      |
+|--------------------|-----------------------------------|---------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `self.inc(x)`      | `c_in x H x W`                    | `32 x H x W`                          | Initial double convolution, `c_in` is the number of input channels                                                                         |
+| `self.down1(x1)`   | `32 x H x W`                      | `64 x H/2 x W/2`                      | Downsampling, image size halved, channels doubled                                                                                          |
+| `self.sa1(x2)`     | `64 x H/2 x W/2`                  | `64 x H/2 x W/2`                      | Self-attention, maintains the same size                                                                                                    |
+| `self.down2(x2)`   | `64 x H/2 x W/2`                  | `128 x H/4 x W/4`                     | Downsampling, image size halved, channels doubled                                                                                          |
+| `self.sa2(x3)`     | `128 x H/4 x W/4`                 | `128 x H/4 x W/4`                     | Self-attention, maintains the same size                                                                                                    |
+| `self.down3(x3)`   | `128 x H/4 x W/4`                 | `128 x H/8 x W/8`                     | Downsampling, image size halved, channels stay the same                                                                                    |
+| `self.sa3(x4)`     | `128 x H/8 x W/8`                 | `128 x H/8 x W/8`                     | Self-attention, maintains the same size                                                                                                    |
+| `self.bot1(x4)`    | `128 x H/8 x W/8`                 | `256 x H/8 x W/8`                     | Bottleneck double convolution, channels doubled                                                                                            |
+| `self.bot2(x4)`    | `256 x H/8 x W/8`                 | `256 x H/8 x W/8`                     | Bottleneck double convolution, channels stay the same                                                                                      |
+| `self.bot3(x4)`    | `256 x H/8 x W/8`                 | `128 x H/8 x W/8`                     | Bottleneck double convolution, channels halved                                                                                             |
+| `self.up1(x4, x3)` | `128 x H/8 x W/8` & `128 x H/4 x W/4` | `64 x H/4 x W/4`                       | Upsampling, image size doubled, channels halved + skip connection                                                                          |
+| `self.sa4(x)`      | `64 x H/4 x W/4`                  | `64 x H/4 x W/4`                      | Self-attention, maintains the same size                                                                                                    |
+| `self.up2(x, x2)`  | `64 x H/4 x W/4` & `64 x H/2 x W/2`   | `32 x H/2 x W/2`                       | Upsampling, image size doubled, channels halved + skip connection                                                                          |
+| `self.sa5(x)`      | `32 x H/2 x W/2`                  | `32 x H/2 x W/2`                      | Self-attention, maintains the same size                                                                                                    |
+| `self.up3(x, x1)`  | `32 x H/2 x W/2` & `32 x H x W`       | `32 x H x W`                           | Upsampling, image size doubled, channels stay the same + skip connection                                                                   |
+| `self.sa6(x)`      | `32 x H x W`                      | `32 x H x W`                          | Self-attention, maintains the same size                                                                                                    |
+| `self.outc(x)`     | `32 x H x W`                      | `c_out x H x W`                       | Final convolution, output channels to `c_out` (e.g., for classification, segmentation, or image generation) |
 
+
+### Key Points:
+- **Downsampling (`Down`) layers** reduce the height (`H`) and width (`W`) of the image by a factor of 2, while typically doubling the number of channels.
+- **Upsampling (`Up`) layers** increase the height (`H`) and width (`W`) by a factor of 2, while reducing the number of channels. They also incorporate skip connections from the corresponding downsampling layers.
+- **Self-Attention (`SelfAttention`) layers** maintain the spatial dimensions but enhance the feature representation by focusing on different parts of the feature maps.
+- **Bottleneck layers (`bot1`, `bot2`, `bot3`)** work at the smallest resolution, focusing on deeper feature extraction.
+- The final output size is determined by the `outc` layer, which typically adjusts the number of channels to `c_out` depending on the specific task.
+"""
 class UNet(nn.Module):
-    def __init__(self, c_in=3, c_out=3, time_dim=256, device="cuda"):
+    def __init__(self, c_in=3, c_out=3,image_size=64, time_dim=256, device="cuda"):
         super().__init__()
         self.device = device
         self.time_dim = time_dim
-        self.inc = DoubleConv(c_in, 64)
-        self.down1 = Down(64, 128)
-        self.sa1 = SelfAttention(128, 32)
-        self.down2 = Down(128, 256)
-        self.sa2 = SelfAttention(256, 16)
-        self.down3 = Down(256, 256)
-        self.sa3 = SelfAttention(256, 8)
+        self.image_size=image_size
+        self.inc = DoubleConv(in_channels=c_in, out_channels=int(self.image_size) )
+        self.down1 = Down(in_channels=int(self.image_size),out_channels= int(2*self.image_size))
+        self.sa1 = SelfAttention(channels=int(2*self.image_size), size=int(self.image_size/2))
+        self.down2 = Down(in_channels=int(2*self.image_size),out_channels= int(4*self.image_size))
+        self.sa2 = SelfAttention(channels=int(4*self.image_size), size=int(self.image_size/4))
+        self.down3 = Down(in_channels=int(4*self.image_size), out_channels=int(4*self.image_size))
+        self.sa3 = SelfAttention(channels=int(4*self.image_size), size=int(self.image_size/8))
 
-        self.bot1 = DoubleConv(256, 512)
-        self.bot2 = DoubleConv(512, 512)
-        self.bot3 = DoubleConv(512, 256)
+        self.bot1 = DoubleConv(in_channels=int(4*self.image_size),out_channels=int(8*self.image_size))
+        self.bot2 = DoubleConv(in_channels=int(8*self.image_size), out_channels=int(8*self.image_size))
+        self.bot3 = DoubleConv(in_channels=int(8*self.image_size),out_channels=int(4*self.image_size))
 
-        self.up1 = Up(512, 128)
-        self.sa4 = SelfAttention(128, 16)
-        self.up2 = Up(256, 64)
-        self.sa5 = SelfAttention(64, 32)
-        self.up3 = Up(128, 64)
-        self.sa6 = SelfAttention(64, 64)
-        self.outc = nn.Conv2d(64, c_out, kernel_size=1)
+        self.up1 = Up(in_channels=int(8*self.image_size), out_channels=int(2*self.image_size))
+        self.sa4 = SelfAttention(channels=int(2*self.image_size), size=int(self.image_size/4))
+        self.up2 = Up(in_channels=int(4*self.image_size),out_channels= int(self.image_size))
+        self.sa5 = SelfAttention(channels=int(self.image_size), size=int(self.image_size/2))
+        self.up3 = Up(in_channels=int(2*self.image_size), out_channels=int(self.image_size))
+        self.sa6 = SelfAttention(channels=int(self.image_size), size=int(self.image_size))
+        self.outc = nn.Conv2d(in_channels=int(self.image_size), out_channels=c_out, kernel_size=1)
 
     def pos_encoding(self, t, channels):
         inv_freq = 1.0 / (
@@ -369,11 +399,11 @@ class Diffusion:
         return x
 
 #%% training def
-def train(args,model_path=None):
+def train(args,model_path=None,dataloader=None):
     setup_logging(args.run_name)
     device = args.device
     dataloader = get_data(args)
-    model = UNet(device=device).to(device)
+    model = UNet(c_in=args.image_channels, c_out=args.image_channels,image_size=args.image_size,device=device).to(device)
     #if(model_path):
     #    ckpt = torch.load(model_path)
     #    model.load_state_dict(ckpt)
@@ -413,18 +443,27 @@ print(f' Model save path: {modelpath}')
 
 #%% test model 
 
-net = UNet(device="cpu")
+if torch.cuda.is_available():
+    print("CUDA is available. Device:", torch.cuda.get_device_name(0))
+else:
+    print("CUDA is not available.")
+
+args = argument()
+args.image_size = 64
+args.image_channels=3
+net = UNet(c_in=args.image_channels, c_out=args.image_channels,image_size=args.image_size,device="cpu")
 #net = UNet_conditional(num_classes=10, device="cpu")
 print(sum([p.numel() for p in net.parameters()]))
-x = torch.randn(3, 3, 64, 64)
+x = torch.randn(2, args.image_channels, args.image_size, args.image_size)
 t = x.new_tensor([500] * x.shape[0]).long()
 y = x.new_tensor([1] * x.shape[0]).long()
-#print(net(x, t, y).shape)
+#print(net(x, t, y).shape) # conditional case
 print(net(x, t).shape)
 #%% test noise
 args = argument()
 args.batch_size = 1
 args.image_size = 64
+args.image_channels=3
 args.device = "cuda"
 args.lr = 3e-4
 args.dataset_path = datapath
@@ -438,26 +477,29 @@ image = image.to(args.device)
 t = torch.Tensor(np.round(np.linspace(0,args.noise_steps-1,9))).long().to(args.device)
 diffusion = Diffusion(noise_steps=args.noise_steps,img_size=args.image_size, device=args.device)
 noised_image, _ = diffusion.noise_images(image, t)
+noised_image = (noised_image.clamp(-1, 1) + 1) / 2
+noised_image = (noised_image * 255).type(torch.uint8)
 plot_images(noised_image)
 
 #%% train model
 args = argument()
 args.run_name = "DDPM_Uncondtional"
-args.epochs = 5
+args.epochs = 2
 args.batch_size = 4  #6  #12
 args.image_size = 64
+args.image_channels=3
 args.dataset_path = datapath
 args.device = "cuda"
 args.lr = 3e-4
-args.noise_steps=1000
+args.noise_steps=10
 
 set_seed(random_seed)
-
-train(args,model_path=modelpath)
+dataloader = get_data(args)
+train(args,model_path=modelpath,dataloader=dataloader)
 
 #%% sample images
 set_seed(random_seed)
-model = UNet().to(args.device)
+model = UNet(c_in=args.image_channels, c_out=args.image_channels,image_size=args.image_size).to(args.device)
 ckpt = torch.load(modelpath)
 model.load_state_dict(ckpt)
 x = diffusion.sample(model, n=6)

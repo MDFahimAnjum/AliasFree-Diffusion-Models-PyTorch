@@ -3,3 +3,5 @@
 /runs/
 *.zip
 /__pycache__/
+/data/MNIST-M/
+/data/MNIST/

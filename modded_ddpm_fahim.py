@@ -524,7 +524,7 @@ print(f' Model save path: {modelpath}')
 
 #%% test model 
 
- net = UNet(device="cpu")
+net = UNet(device="cpu")
 #net = UNet_conditional(num_classes=10, device="cpu")
 print(sum([p.numel() for p in net.parameters()]))
 x = torch.randn(3, 3, 64, 64)
