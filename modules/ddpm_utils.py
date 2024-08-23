@@ -95,6 +95,79 @@ class DoubleConv(nn.Module):
             return self.double_conv(x)
 
 
+class DoubleConv_F(nn.Module):
+    def __init__(self, in_channels, out_channels, mid_channels=None, residual=False,f_settings=None):
+        super().__init__()
+        self.residual = residual
+        self.f_settings=f_settings
+        self.jinc_filter = circularLowpassKernel(omega_c=self.f_settings['omega_c_down'],
+                                                 N=self.f_settings['kernel_size'], 
+                                                 beta=self.f_settings['kaiser_beta'])
+        self.sinc_filter = circularLowpassKernel(omega_c=self.f_settings['omega_c_up'],
+                                                 N=self.f_settings['kernel_size'], 
+                                                 beta=self.f_settings['kaiser_beta'])
+
+        if not mid_channels:
+            mid_channels = out_channels
+
+        self.conv1=nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False)
+        self.norm1=nn.GroupNorm(1, mid_channels)
+        self.gelu= nn.GELU()
+        self.conv2=nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False)
+        self.norm2=nn.GroupNorm(1, out_channels)
+
+    def forward(self, x):
+        if self.residual:
+            residual=x
+            x=self.conv1(x)
+            x=self.norm1(x)
+            x = self.custom_upsample(x, self.sinc_filter)
+            x=self.gelu(x)
+            x = self.custom_downsample(x, self.jinc_filter)
+            x = self.conv2(x)
+            x = self.norm2(x)
+            x = x + residual
+            x = self.custom_upsample(x, self.sinc_filter)
+            x = F.gelu(x)
+            x = self.custom_downsample(x, self.jinc_filter)
+            return x
+            # return F.gelu(x + self.double_conv(x))
+        else:
+            x=self.conv1(x)
+            x=self.norm1(x)
+            x = self.custom_upsample(x, self.sinc_filter)
+            x=self.gelu(x)
+            x = self.custom_downsample(x, self.jinc_filter)
+            x = self.conv2(x)
+            x = self.norm2(x)
+            return x
+            #return self.double_conv(x)
+
+    def custom_downsample(self, x, jinc_filter):
+        # Apply the Jinc filter before downsampling
+        jinc_filter = jinc_filter[None, None, :, :].to(x.device)  # Shape (1, 1, filter_size, filter_size)
+        jinc_filter = jinc_filter.repeat(x.size(1), 1, 1, 1)  # Match number of channels
+        x = F.conv2d(x, jinc_filter, padding='same', groups=x.size(1))
+        x = x[:, :, ::2, ::2]
+        return x
+
+    def custom_upsample(self, x, sinc_filter):
+        # Upsample using zero padding followed by applying the sinc filter
+        # Get the original dimensions
+        batch_size, channels, height, width = x.shape
+
+        # Create a new tensor with double the height and width filled with zeros
+        upsampled = torch.zeros(batch_size, channels, height * 2, width * 2, device=x.device)
+
+        # Assign the original values to the correct positions
+        upsampled[:, :, ::2, ::2] = x
+        x=upsampled
+        # Apply the sinc filter (low-pass filter)
+        sinc_filter = sinc_filter[None, None, :, :].to(x.device)  # Shape (1, 1, filter_size, filter_size)
+        sinc_filter = sinc_filter.repeat(x.size(1), 1, 1, 1)  # Match number of channels
+        x = F.conv2d(x, sinc_filter, padding='same', groups=x.size(1))
+        return x    
+
 class Down(nn.Module):
     def __init__(self, in_channels, out_channels, emb_dim=256):
         super().__init__()
@@ -145,16 +218,13 @@ class Up(nn.Module):
 
 
 class Down_F(nn.Module):
-    def __init__(self, in_channels, out_channels, emb_dim=256, filter_size=6, beta=14,omega_c=np.pi/2):
+    def __init__(self, in_channels, out_channels, emb_dim=256,f_settings=None):
         super().__init__()
-
-        # Generate the 2D Jinc filter with Kaiser window
-        #self.jinc_filter = jinc_filter_2d(filter_size, beta)
-        self.jinc_filter = circularLowpassKernel(omega_c=omega_c,N=filter_size, beta=beta)
-
-        self.conv = nn.Sequential(
-            DoubleConv(in_channels, in_channels, residual=True),
-            DoubleConv(in_channels, out_channels),
+        self.f_settings=f_settings
+        self.maxpool_conv = nn.Sequential(
+            nn.MaxPool2d(2),
+            DoubleConv_F(in_channels, in_channels, residual=True,f_settings=self.f_settings),
+            DoubleConv_F(in_channels, out_channels,f_settings=self.f_settings),
         )
 
         self.emb_layer = nn.Sequential(
@@ -166,32 +236,18 @@ class Down_F(nn.Module):
         )
 
     def forward(self, x, t):
-        # Downsample using the custom Jinc-based filter
-        x = self.custom_downsample(x, self.jinc_filter)
-        x = self.conv(x)
+        x = self.maxpool_conv(x)
         emb = self.emb_layer(t)[:, :, None, None].repeat(1, 1, x.shape[-2], x.shape[-1])
         return x + emb
 
-    def custom_downsample(self, x, jinc_filter):
-        # Apply the Jinc filter before downsampling
-        jinc_filter = jinc_filter[None, None, :, :].to(x.device)  # Shape (1, 1, filter_size, filter_size)
-        jinc_filter = jinc_filter.repeat(x.size(1), 1, 1, 1)  # Match number of channels
-        x = F.conv2d(x, jinc_filter, padding='same', groups=x.size(1))
-        x = F.max_pool2d(x, 2)
-        return x
-
-
 class Up_F(nn.Module):
-    def __init__(self, in_channels, out_channels, emb_dim=256, filter_size=6, beta=14,omega_c=np.pi):
+    def __init__(self, in_channels, out_channels, emb_dim=256,f_settings=None):
         super().__init__()
-
-        # Generate the 2D sinc filter with Kaiser window
-        #self.sinc_filter = jinc_filter_2d(filter_size, beta)
-        self.sinc_filter = circularLowpassKernel(omega_c=omega_c,N=filter_size, beta=beta)
-
+        self.f_settings=f_settings
+        self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
         self.conv = nn.Sequential(
-            DoubleConv(in_channels, in_channels, residual=True),
-            DoubleConv(in_channels, out_channels, in_channels // 2),
+            DoubleConv_F(in_channels, in_channels, residual=True,f_settings=self.f_settings),
+            DoubleConv_F(in_channels, out_channels, in_channels // 2,f_settings=self.f_settings),
         )
 
         self.emb_layer = nn.Sequential(
@@ -203,21 +259,11 @@ class Up_F(nn.Module):
         )
 
     def forward(self, x, skip_x, t):
-        # Upsample using the custom filter
-        x = self.custom_upsample(x, self.sinc_filter)
+        x = self.up(x)
         x = torch.cat([skip_x, x], dim=1)
         x = self.conv(x)
         emb = self.emb_layer(t)[:, :, None, None].repeat(1, 1, x.shape[-2], x.shape[-1])
         return x + emb
-
-    def custom_upsample(self, x, sinc_filter):
-        # Upsample using F.interpolate, followed by applying the sinc filter
-        x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
-        # Apply the sinc filter (low-pass filter)
-        sinc_filter = sinc_filter[None, None, :, :].to(x.device)  # Shape (1, 1, filter_size, filter_size)
-        sinc_filter = sinc_filter.repeat(x.size(1), 1, 1, 1)  # Match number of channels
-        x = F.conv2d(x, sinc_filter, padding='same', groups=x.size(1))
-        return x
 
 # training def
 def train(args,model_path=None,dataloader=None,model=None,diffusion=None):

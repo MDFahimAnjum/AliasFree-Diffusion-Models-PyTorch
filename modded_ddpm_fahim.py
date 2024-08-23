@@ -22,8 +22,8 @@ set_seed(random_seed)
 #%% Filters
 
 filter_size=3
-beta=2
-omega_c = np.pi/2  # Cutoff frequency in radians <= pi
+beta=8
+omega_c = np.pi/4  # Cutoff frequency in radians <= pi
 
 filters=[]
 filters.append( jinc_filter_2d(filter_size, beta))
@@ -57,10 +57,10 @@ args.image_channels=1 #3
 f_settings={}
 f_settings['kernel_size']=3
 f_settings['kaiser_beta']=8
-f_settings['omega_c_down'] = np.pi/2
+f_settings['omega_c_down'] = np.pi/4
 f_settings['omega_c_up'] = np.pi
 
-net = UNet(c_in=args.image_channels, c_out=args.image_channels,
+net = UNet_F(c_in=args.image_channels, c_out=args.image_channels,
            image_size=args.image_size,f_settings=f_settings,device="cpu")
 #net = UNet_conditional(num_classes=10, device="cpu")
 print(sum([p.numel() for p in net.parameters()]))
@@ -114,7 +114,7 @@ images=[]
 images.append(image_data(x)) # original
 
 #filter params
-omega_c_down=np.pi/2
+omega_c_down=np.pi/4
 omega_c_up=np.pi
 filter_size=3
 beta=8
@@ -200,7 +200,7 @@ plt.show()
 #%% model parameters
 args = argument()
 args.run_name = "DDPM_Uncondtional_F_MNIST"
-args.epochs = 100
+args.epochs = 200
 args.batch_size = 64  #6  #12
 args.image_size = 32 #64
 args.image_channels=1 #3
@@ -213,14 +213,14 @@ args.image_gen_n=8
 f_settings={}
 f_settings['kernel_size']=3
 f_settings['kaiser_beta']=8
-f_settings['omega_c_down'] = np.pi/2
+f_settings['omega_c_down'] = np.pi/4
 f_settings['omega_c_up'] = np.pi
 
 #%% train model
 set_seed(random_seed)
 # dataloader, dataset = get_data(args)
 dataloader, dataset = get_data_MNIST(args)
-model = UNet(c_in=args.image_channels, c_out=args.image_channels,
+model = UNet_F(c_in=args.image_channels, c_out=args.image_channels,
              image_size=args.image_size,f_settings=f_settings,device=args.device).to(args.device)
 diffusion = Diffusion(noise_steps=args.noise_steps,img_size=args.image_size, device=args.device)
 loss_all=train(args,model_path=modelpath,dataloader=dataloader,model=model,diffusion=diffusion)
@@ -230,7 +230,7 @@ plot_loss(loss_all)
 
 #%% load model
 set_seed(random_seed)
-model = UNet(c_in=args.image_channels, c_out=args.image_channels,
+model = UNet_F(c_in=args.image_channels, c_out=args.image_channels,
              image_size=args.image_size,f_settings=f_settings,device=args.device).to(args.device)
 ckpt = torch.load(modelpath)
 model.load_state_dict(ckpt)
