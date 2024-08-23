@@ -21,7 +21,7 @@ set_seed(random_seed)
 
 #%% Filters
 
-filter_size=7
+filter_size=3
 beta=2
 omega_c = np.pi/2  # Cutoff frequency in radians <= pi
 
@@ -51,12 +51,12 @@ else:
     print("CUDA is not available.")
 
 args = argument()
-args.image_size = 64
+args.image_size = 32
 args.image_channels=1 #3
 
 f_settings={}
-f_settings['kernel_size']=7
-f_settings['kaiser_beta']=4
+f_settings['kernel_size']=3
+f_settings['kaiser_beta']=8
 f_settings['omega_c_down'] = np.pi/2
 f_settings['omega_c_up'] = np.pi
 
@@ -73,7 +73,7 @@ print(net(x, t).shape)
 #%% test noise
 args = argument()
 args.batch_size = 1
-args.image_size = 64
+args.image_size = 32
 args.image_channels= 1 #3
 args.device = "cuda"
 args.lr = 3e-4
@@ -116,7 +116,7 @@ images.append(image_data(x)) # original
 #filter params
 omega_c_down=np.pi/2
 omega_c_up=np.pi
-filter_size=7
+filter_size=3
 beta=8
 
 #downsample
@@ -211,7 +211,7 @@ args.noise_steps=1000
 args.image_gen_n=8
 
 f_settings={}
-f_settings['kernel_size']=7
+f_settings['kernel_size']=3
 f_settings['kaiser_beta']=8
 f_settings['omega_c_down'] = np.pi/2
 f_settings['omega_c_up'] = np.pi

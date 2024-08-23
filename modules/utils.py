@@ -132,9 +132,9 @@ def save_gen_images(path_str,data,fileno):
     # Iterate over the dataset and save each image
     for i in range(data.shape[0]):
         if data.shape[1]==1: #gray images
-            image=data[i,:,:,:].squeeze(0).cpu().numpy()
+            image=data[i,:,:,:].squeeze(0).cpu()#.numpy()
         else: # RGB images
-            image=data[i,:,:,:].cpu().numpy()
+            image=data[i,:,:,:].cpu()
         # Convert tensor to PIL image
         pil_image = to_pil(image)
         
