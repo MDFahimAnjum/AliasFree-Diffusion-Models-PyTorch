@@ -17,7 +17,7 @@ params={
     'f_down': np.pi/4,
     'f_up': np .pi,
     'save_trining': False,
-    'gen_per_batch': 250,
+    'gen_per_batch': 200,
     'gen_total': 3000,
     'seed': 42 
 
