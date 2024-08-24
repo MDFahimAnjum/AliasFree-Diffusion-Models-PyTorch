@@ -154,3 +154,31 @@ def image_data(x):
             return x.squeeze().cpu()#.numpy()
         else:
             return None
+
+def make_collage(filedir,savedir,images_per_collage,total_image,image_size):
+    per_dim_total=int(np.sqrt(images_per_collage))
+    per_dim=int(image_size*np.sqrt(images_per_collage))
+    fileno_start=np.arange(0,total_image,images_per_collage)
+    for start_no in fileno_start:
+        fileno=np.arange(start_no,start_no+images_per_collage,1)
+        
+        image_files = [filedir+f"/image_{i}.png" for i in fileno]
+
+
+        # Load images
+        images = [Image.open(img).resize((image_size, image_size)) for img in image_files]
+
+        # Create a blank 320x320 image
+        collage = Image.new('RGB', (per_dim, per_dim))
+
+        # Paste each image in its corresponding place in the grid
+        for i in range(per_dim_total):
+            for j in range(per_dim_total):
+                # Calculate position for each image
+                position = (i * image_size, j * image_size)
+                # Paste image at the calculated position
+                collage.paste(images[i * per_dim_total + j], position)
+
+        # Save the collage
+        collage.save(savedir+f'_collage_{start_no}.png')
+        print(f'_collage_{start_no}.png')

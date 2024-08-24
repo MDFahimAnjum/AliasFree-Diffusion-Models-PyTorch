@@ -15,12 +15,15 @@ from modules.utils import *
 from modules.ddpm_utils import *
 from modules.ddpm_models import *
 import csv
+import gc
 
 def ddpm_run(params):
     # set params
     unet_variant=params['unet_v']
+    dataset_name=params['dataset']
+
     args = argument()
-    args.run_name = f"DDPM_Uncondtional_MNIST_{unet_variant}"
+    args.run_name = f"DDPM_Uncondtional_{dataset_name}_{unet_variant}"
     args.epochs = params['epochs']
     args.batch_size = params['batchsize']
     args.image_size = params['image_size']
@@ -32,28 +35,31 @@ def ddpm_run(params):
 
     # params datapaths
     current_directory = os.getcwd() #parameters
-    #datapath = os.path.join(current_directory,"data\Linnaeus 5 64X64")
-    datapath = os.path.join(current_directory,"data\MNIST\mnist_train_small.csv")
-    modelpath= os.path.join(current_directory,f"models\DDPM_Uncondtional_MNIST_{unet_variant}\ckpt_MNIST_{unet_variant}.pt")
+    datapath = params['dataset_dir']
+    modelpath= os.path.join(current_directory,f"models\DDPM_Uncondtional_{dataset_name}_{unet_variant}\ckpt_{dataset_name}_{unet_variant}.pt")
     args.dataset_path = datapath
 
     # Set filters
-    #f_settings=None
-    f_settings={}
-    f_settings['kernel_size']=params['f_kernel']
-    f_settings['kaiser_beta']=params['f_beta']
-    f_settings['omega_c_down'] =params['f_down']
-    f_settings['omega_c_up'] = params['f_up']
+    if params['f_kernel'] is None:
+        f_settings=None
+    else:
+        f_settings={}
+        f_settings['kernel_size']=params['f_kernel']
+        f_settings['kaiser_beta']=params['f_beta']
+        f_settings['omega_c_down'] =params['f_down']
+        f_settings['omega_c_up'] = params['f_up']
 
     # save training data images
     save_training_dataset=params['save_trining']
-    tr_data_save_dir=os.path.join(current_directory,"images\original\MNIST")
+    tr_data_save_dir=os.path.join(current_directory,f"images\original\{dataset_name}")
 
     # params for gen images
-    gen_savepath = os.path.join(current_directory,f"images\generated\MNIST_{unet_variant}")
+    gen_savepath = os.path.join(current_directory,f"images\generated\{dataset_name}_{unet_variant}")
     gen_per_batch=params['gen_per_batch']
     total_gen=params['gen_total']
 
+    images_per_collage=params['collage_n_per_image']
+    total_image_collage=params['collage_n']
     logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO, datefmt="%I:%M:%S")
 
     random_seed=params['seed']
@@ -64,30 +70,40 @@ def ddpm_run(params):
     else:
         print("CUDA is not available.")
 
-    all_settings={}
-    all_settings['kernel_size']=f_settings['kernel_size']
-    all_settings['kaiser_beta']=f_settings['kaiser_beta']
-    all_settings['omega_c_down']=f_settings['omega_c_down']
-    all_settings['omega_c_up']=f_settings['omega_c_up']
-    all_settings['unet_v']=unet_variant
-    all_settings['run_name']=args.run_name
-    all_settings['epochs']=args.epochs
-    all_settings['batch_size ']=args.batch_size
-    all_settings['image_size']=args.image_size
-    all_settings['image_channels']=args.image_channels
-    all_settings['device']=args.device
-    all_settings['lr']=args.lr
-    all_settings['noise_steps']=args.noise_steps
-    all_settings['image_gen_n']=args.image_gen_n
-    all_settings['datapath']=args.dataset_path
-    all_settings['modelpath']=modelpath
-    all_settings['save_tr_data']=save_training_dataset
-    all_settings['tr_save_path']=tr_data_save_dir
-    all_settings['gen_savepath']=gen_savepath
-    all_settings['gen_per_batch']=gen_per_batch
-    all_settings['total_gen']=total_gen
-    all_settings['seed']=random_seed
+    all_settings={
+        'unet_v': unet_variant,
+        'run_name': args.run_name,
+        'epochs':args.epochs,
+        'batch_size ':args.batch_size,
+        'image_size':args.image_size,
+        'image_channels':args.image_channels,
+        'device':args.device,
+        'lr':args.lr,
+        'noise_steps':args.noise_steps,
+        'image_gen_n':args.image_gen_n,
+        'datapath':args.dataset_path,
+        'modelpath':modelpath,
+        'save_tr_data':save_training_dataset,
+        'tr_save_path':tr_data_save_dir,
+        'gen_savepath':gen_savepath,
+        'gen_per_batch':gen_per_batch,
+        'total_gen': total_gen,
+        'seed': random_seed,
+        'collage_n_per_image': images_per_collage,
+        'collage_n': total_image_collage,
+        'dataset': dataset_name
+    }
 
+    if f_settings is not None:
+        all_settings['kernel_size']=f_settings['kernel_size']
+        all_settings['kaiser_beta']=f_settings['kaiser_beta']
+        all_settings['omega_c_down']=f_settings['omega_c_down']
+        all_settings['omega_c_up']=f_settings['omega_c_up']
+    else:
+        all_settings['kernel_size']="None"
+        all_settings['kaiser_beta']="None"
+        all_settings['omega_c_down']="None"
+        all_settings['omega_c_up']="None"
 
     # Format the dictionary as a string
     formatted_settings = "\n".join([f"{key}: {value}" for key, value in all_settings.items()])
@@ -96,11 +112,11 @@ def ddpm_run(params):
     print(formatted_settings)
 
     # Save the formatted string to a text file
-    setting_savepath= os.path.join(current_directory,f"runs/DDPM_Uncondtional_MNIST_{unet_variant}")
+    setting_savepath= os.path.join(current_directory,f"runs/DDPM_Uncondtional_{dataset_name}_{unet_variant}")
     os.makedirs(setting_savepath, exist_ok=True)
 
     # Save the formatted string to a text file in the specified directory
-    with open(os.path.join(setting_savepath, f"settings_MNIST_{unet_variant}.txt"), "w") as file:
+    with open(os.path.join(setting_savepath, f"settings_{dataset_name}_{unet_variant}.txt"), "w") as file:
         file.write(formatted_settings)
 
     #Filters
@@ -142,8 +158,10 @@ def ddpm_run(params):
 
     set_seed(random_seed)
 
-    #dataloader, dataset = get_data(args_temp)
-    dataloader, dataset = get_data_MNIST(args_temp)
+    if dataset_name=="MNIST":
+            dataloader, dataset = get_data_MNIST(args_temp)
+    else:
+        dataloader, dataset = get_data(args_temp)
     image = next(iter(dataloader))[0]
     image = image.to(args_temp.device)
     t = torch.Tensor(np.round(np.linspace(0,args_temp.noise_steps-1,9))).long().to(args_temp.device)
@@ -158,8 +176,10 @@ def ddpm_run(params):
     if f_settings is not None:
         # load an image
         set_seed(random_seed)
-        #dataloader, dataset = get_data(args)
-        dataloader, dataset = get_data_MNIST(args_temp)
+        if dataset_name=="MNIST":
+            dataloader, dataset = get_data_MNIST(args_temp)
+        else:
+            dataloader, dataset = get_data(args_temp)
         image = next(iter(dataloader))[0]
         x=image
 
@@ -214,8 +234,10 @@ def ddpm_run(params):
     if f_settings is not None:
         # load an image
         set_seed(random_seed)
-        #dataloader, dataset = get_data(args)
-        dataloader, dataset = get_data_MNIST(args_temp)
+        if dataset_name=="MNIST":
+            dataloader, dataset = get_data_MNIST(args_temp)
+        else:
+            dataloader, dataset = get_data(args_temp)
         image = next(iter(dataloader))[0]
         x=image
 
@@ -256,8 +278,10 @@ def ddpm_run(params):
 
     # train model
     set_seed(random_seed)
-    # dataloader, dataset = get_data(args)
-    dataloader, dataset = get_data_MNIST(args)
+    if dataset_name=="MNIST":
+            dataloader, dataset = get_data_MNIST(args)
+    else:
+        dataloader, dataset = get_data(args)
     model = UNet(c_in=args.image_channels, c_out=args.image_channels,
                 image_size=args.image_size,f_settings=f_settings,device=args.device,variant=unet_variant).to(args.device)
     diffusion = Diffusion(noise_steps=args.noise_steps,img_size=args.image_size, device=args.device)
@@ -268,6 +292,11 @@ def ddpm_run(params):
     with open(os.path.join(setting_savepath, f"trining_loss_MNIST_{unet_variant}.csv"), "w", newline='') as file:
         writer = csv.writer(file)
         writer.writerow(loss_all)  # Write the list as a single row in the CSV file
+    
+    #free space
+    torch.cuda.empty_cache()
+    gc.collect()
+    
     # load model
     set_seed(random_seed)
     model = UNet(c_in=args.image_channels, c_out=args.image_channels,
@@ -288,11 +317,12 @@ def ddpm_run(params):
 
     # load and save training images
 
-    if save_training_dataset:
+    if save_training_dataset & (dataset_name=="MNIST"):
         _, dataset = get_data_MNIST(args)
         save_dataset_MNIST(tr_data_save_dir,dataset)
     else:
         print('skipped saving training dataset')
+    
     # generate images and save
     fileno_start=np.arange(0,total_gen,gen_per_batch)
     for start_no in fileno_start:
@@ -300,3 +330,9 @@ def ddpm_run(params):
         x = diffusion.sample(model, n=gen_per_batch,image_channels=args.image_channels)
         save_gen_images(gen_savepath,x,fileno)
 
+    #make collage
+    make_collage(gen_savepath,gen_savepath,images_per_collage,total_image_collage,args.image_size)
+
+    #free space
+    torch.cuda.empty_cache()
+    gc.collect()
