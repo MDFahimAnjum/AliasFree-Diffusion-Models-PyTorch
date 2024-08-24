@@ -36,7 +36,7 @@ def ddpm_run(params):
     # params datapaths
     current_directory = os.getcwd() #parameters
     datapath = params['dataset_dir']
-    modelpath= os.path.join(current_directory,f"models\DDPM_Uncondtional_{dataset_name}_{unet_variant}\ckpt_{dataset_name}_{unet_variant}.pt")
+    modelpath= os.path.join(current_directory,f"models/DDPM_Uncondtional_{dataset_name}_{unet_variant}/ckpt_{dataset_name}_{unet_variant}.pt")
     args.dataset_path = datapath
 
     # Set filters
@@ -51,10 +51,10 @@ def ddpm_run(params):
 
     # save training data images
     save_training_dataset=params['save_trining']
-    tr_data_save_dir=os.path.join(current_directory,f"images\original\{dataset_name}")
+    tr_data_save_dir=os.path.join(current_directory,f"images/original/{dataset_name}")
 
     # params for gen images
-    gen_savepath = os.path.join(current_directory,f"images\generated\{dataset_name}_{unet_variant}")
+    gen_savepath = os.path.join(current_directory,f"images/generated/{dataset_name}_{unet_variant}")
     gen_per_batch=params['gen_per_batch']
     total_gen=params['gen_total']
 
