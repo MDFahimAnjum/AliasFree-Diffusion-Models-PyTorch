@@ -37,143 +37,174 @@ from tqdm import tqdm
 - The final output size is determined by the `outc` layer, which typically adjusts the number of channels to `c_out` depending on the specific task.
 """
 class UNet(nn.Module):
-    def __init__(self, c_in=3, c_out=3,image_size=64, time_dim=256, device="cuda", f_settings=None,num_classes=None):
+    def __init__(self, c_in=3, c_out=3,image_size=64, time_dim=256, device="cuda", f_settings=None,num_classes=None,variant=0):
         super().__init__()
         self.device = device
         self.time_dim = time_dim
         self.image_size=image_size
-        self.inc = DoubleConv(in_channels=c_in, 
+        self.f_settings=f_settings
+
+        if variant==0:
+            print(f'Variant {variant} Original UNet')
+            self.inc = DoubleConv(in_channels=c_in, 
+                                out_channels=int(self.image_size) )
+            self.down1 = Down(in_channels=int(self.image_size),
+                            out_channels= int(2*self.image_size))
+            self.sa1 = SelfAttention(channels=int(2*self.image_size), 
+                                    size=int(self.image_size/2))
+            self.down2 = Down(in_channels=int(2*self.image_size),
+                            out_channels= int(4*self.image_size))
+            self.sa2 = SelfAttention(channels=int(4*self.image_size), 
+                                    size=int(self.image_size/4))
+            self.down3 = Down(in_channels=int(4*self.image_size), 
+                            out_channels=int(4*self.image_size))
+            self.sa3 = SelfAttention(channels=int(4*self.image_size), 
+                                    size=int(self.image_size/8))
+
+            self.bot1 = DoubleConv(in_channels=int(4*self.image_size),
+                                out_channels=int(8*self.image_size))
+            self.bot2 = DoubleConv(in_channels=int(8*self.image_size), 
+                                out_channels=int(8*self.image_size))
+            self.bot3 = DoubleConv(in_channels=int(8*self.image_size),
+                                out_channels=int(4*self.image_size))
+
+            self.up1 = Up(in_channels=int(8*self.image_size), 
+                        out_channels=int(2*self.image_size))
+            self.sa4 = SelfAttention(channels=int(2*self.image_size), 
+                                    size=int(self.image_size/4))
+            self.up2 = Up(in_channels=int(4*self.image_size),
+                        out_channels= int(self.image_size))
+            self.sa5 = SelfAttention(channels=int(self.image_size), 
+                                    size=int(self.image_size/2))
+            self.up3 = Up(in_channels=int(2*self.image_size), 
+                        out_channels=int(self.image_size))
+            self.sa6 = SelfAttention(channels=int(self.image_size), 
+                                    size=int(self.image_size))
+            self.outc = nn.Conv2d(in_channels=int(self.image_size), 
+                                out_channels=c_out, kernel_size=1)
+        elif variant==1:
+            if self.f_settings is None:
+                raise ValueError("f_settings is empty")
+            
+            print(f'Variant {variant} Modified UNet: aliasing filters in up and downsampling')
+            self.inc = DoubleConv(in_channels=c_in, 
                               out_channels=int(self.image_size) )
-        self.down1 = Down(in_channels=int(self.image_size),
-                          out_channels= int(2*self.image_size))
-        self.sa1 = SelfAttention(channels=int(2*self.image_size), 
-                                 size=int(self.image_size/2))
-        self.down2 = Down(in_channels=int(2*self.image_size),
-                          out_channels= int(4*self.image_size))
-        self.sa2 = SelfAttention(channels=int(4*self.image_size), 
-                                 size=int(self.image_size/4))
-        self.down3 = Down(in_channels=int(4*self.image_size), 
-                          out_channels=int(4*self.image_size))
-        self.sa3 = SelfAttention(channels=int(4*self.image_size), 
-                                 size=int(self.image_size/8))
+            self.down1 = Down_FF(in_channels=int(self.image_size),
+                            out_channels= int(2*self.image_size),f_settings=self.f_settings)
+            self.sa1 = SelfAttention(channels=int(2*self.image_size), 
+                                    size=int(self.image_size/2))
+            self.down2 = Down_FF(in_channels=int(2*self.image_size),
+                            out_channels= int(4*self.image_size),f_settings=self.f_settings)
+            self.sa2 = SelfAttention(channels=int(4*self.image_size), 
+                                    size=int(self.image_size/4))
+            self.down3 = Down_FF(in_channels=int(4*self.image_size), 
+                            out_channels=int(4*self.image_size),f_settings=self.f_settings)
+            self.sa3 = SelfAttention(channels=int(4*self.image_size), 
+                                    size=int(self.image_size/8))
 
-        self.bot1 = DoubleConv(in_channels=int(4*self.image_size),
-                               out_channels=int(8*self.image_size))
-        self.bot2 = DoubleConv(in_channels=int(8*self.image_size), 
-                               out_channels=int(8*self.image_size))
-        self.bot3 = DoubleConv(in_channels=int(8*self.image_size),
-                               out_channels=int(4*self.image_size))
+            self.bot1 = DoubleConv(in_channels=int(4*self.image_size),
+                                out_channels=int(8*self.image_size))
+            self.bot2 = DoubleConv(in_channels=int(8*self.image_size), 
+                                out_channels=int(8*self.image_size))
+            self.bot3 = DoubleConv(in_channels=int(8*self.image_size),
+                                out_channels=int(4*self.image_size))
 
-        self.up1 = Up(in_channels=int(8*self.image_size), 
-                      out_channels=int(2*self.image_size))
-        self.sa4 = SelfAttention(channels=int(2*self.image_size), 
-                                 size=int(self.image_size/4))
-        self.up2 = Up(in_channels=int(4*self.image_size),
-                      out_channels= int(self.image_size))
-        self.sa5 = SelfAttention(channels=int(self.image_size), 
-                                 size=int(self.image_size/2))
-        self.up3 = Up(in_channels=int(2*self.image_size), 
-                      out_channels=int(self.image_size))
-        self.sa6 = SelfAttention(channels=int(self.image_size), 
-                                 size=int(self.image_size))
-        self.outc = nn.Conv2d(in_channels=int(self.image_size), 
-                              out_channels=c_out, kernel_size=1)
-        # for conditional Unet
-        if num_classes is not None:
-            print("Conditional UNet")
-            self.label_emb = nn.Embedding(num_classes, time_dim)
-        else:
-            print("Unconditional UNet")
-        
-
-    def pos_encoding(self, t, channels):
-        inv_freq = 1.0 / (
-            10000
-            ** (torch.arange(0, channels, 2, device=self.device).float() / channels)
-        )
-        pos_enc_a = torch.sin(t.repeat(1, channels // 2) * inv_freq)
-        pos_enc_b = torch.cos(t.repeat(1, channels // 2) * inv_freq)
-        pos_enc = torch.cat([pos_enc_a, pos_enc_b], dim=-1)
-        return pos_enc
-
-    def forward(self, x, t, y=None):
-        t = t.unsqueeze(-1).type(torch.float)
-        t = self.pos_encoding(t, self.time_dim)
-
-        # for conditional
-        if y is not None:
-            t += self.label_emb(y)
-        
-        x1 = self.inc(x)
-        x2 = self.down1(x1, t)
-        x2 = self.sa1(x2)
-        x3 = self.down2(x2, t)
-        x3 = self.sa2(x3)
-        x4 = self.down3(x3, t)
-        x4 = self.sa3(x4)
-
-        x4 = self.bot1(x4)
-        x4 = self.bot2(x4)
-        x4 = self.bot3(x4)
-
-        x = self.up1(x4, x3, t)
-        x = self.sa4(x)
-        x = self.up2(x, x2, t)
-        x = self.sa5(x)
-        x = self.up3(x, x1, t)
-        x = self.sa6(x)
-        output = self.outc(x)
-        return output
-
-class UNet_F(nn.Module):
-    def __init__(self, c_in=3, c_out=3,image_size=64, time_dim=256, device="cuda", f_settings=None,num_classes=None):
-        super().__init__()
-        self.device = device
-        self.time_dim = time_dim
-        self.image_size=image_size
-
-        if f_settings is not None:
-            print("Modified UNet")
-            self.f_settings=f_settings
-        else:
-            raise ValueError("f_settings is empty")
-
-        self.inc = DoubleConv_F(in_channels=c_in, 
+            self.up1 = Up_FF(in_channels=int(8*self.image_size), 
+                        out_channels=int(2*self.image_size),f_settings=self.f_settings)
+            self.sa4 = SelfAttention(channels=int(2*self.image_size), 
+                                    size=int(self.image_size/4))
+            self.up2 = Up_FF(in_channels=int(4*self.image_size),
+                        out_channels= int(self.image_size),f_settings=self.f_settings)
+            self.sa5 = SelfAttention(channels=int(self.image_size), 
+                                    size=int(self.image_size/2))
+            self.up3 = Up_FF(in_channels=int(2*self.image_size), 
+                        out_channels=int(self.image_size),f_settings=self.f_settings)
+            self.sa6 = SelfAttention(channels=int(self.image_size), 
+                                    size=int(self.image_size))
+            self.outc = nn.Conv2d(in_channels=int(self.image_size), 
+                                out_channels=c_out, kernel_size=1)
+        elif variant==2:
+            if self.f_settings is None:
+                raise ValueError("f_settings is empty")
+            
+            print(f'Variant {variant} Modified UNet: filters around gelu but no filters in up or downsampling')
+            self.inc = DoubleConv_F(in_channels=c_in, 
                               out_channels=int(self.image_size),f_settings=self.f_settings )
-        self.down1 = Down_F(in_channels=int(self.image_size),
-                          out_channels= int(2*self.image_size),f_settings=self.f_settings)
-        self.sa1 = SelfAttention(channels=int(2*self.image_size), 
-                                 size=int(self.image_size/2))
-        self.down2 = Down_F(in_channels=int(2*self.image_size),
-                          out_channels= int(4*self.image_size),f_settings=self.f_settings)
-        self.sa2 = SelfAttention(channels=int(4*self.image_size), 
-                                 size=int(self.image_size/4))
-        self.down3 = Down_F(in_channels=int(4*self.image_size), 
-                          out_channels=int(4*self.image_size),f_settings=self.f_settings)
-        self.sa3 = SelfAttention(channels=int(4*self.image_size), 
-                                 size=int(self.image_size/8))
+            self.down1 = Down_F(in_channels=int(self.image_size),
+                            out_channels= int(2*self.image_size),f_settings=self.f_settings)
+            self.sa1 = SelfAttention(channels=int(2*self.image_size), 
+                                    size=int(self.image_size/2))
+            self.down2 = Down_F(in_channels=int(2*self.image_size),
+                            out_channels= int(4*self.image_size),f_settings=self.f_settings)
+            self.sa2 = SelfAttention(channels=int(4*self.image_size), 
+                                    size=int(self.image_size/4))
+            self.down3 = Down_F(in_channels=int(4*self.image_size), 
+                            out_channels=int(4*self.image_size),f_settings=self.f_settings)
+            self.sa3 = SelfAttention(channels=int(4*self.image_size), 
+                                    size=int(self.image_size/8))
 
-        self.bot1 = DoubleConv_F(in_channels=int(4*self.image_size),
-                               out_channels=int(8*self.image_size),f_settings=self.f_settings)
-        self.bot2 = DoubleConv_F(in_channels=int(8*self.image_size), 
-                               out_channels=int(8*self.image_size),f_settings=self.f_settings)
-        self.bot3 = DoubleConv_F(in_channels=int(8*self.image_size),
-                               out_channels=int(4*self.image_size),f_settings=self.f_settings)
+            self.bot1 = DoubleConv_F(in_channels=int(4*self.image_size),
+                                out_channels=int(8*self.image_size),f_settings=self.f_settings)
+            self.bot2 = DoubleConv_F(in_channels=int(8*self.image_size), 
+                                out_channels=int(8*self.image_size),f_settings=self.f_settings)
+            self.bot3 = DoubleConv_F(in_channels=int(8*self.image_size),
+                                out_channels=int(4*self.image_size),f_settings=self.f_settings)
 
-        self.up1 = Up_F(in_channels=int(8*self.image_size), 
-                      out_channels=int(2*self.image_size),f_settings=self.f_settings)
-        self.sa4 = SelfAttention(channels=int(2*self.image_size), 
-                                 size=int(self.image_size/4))
-        self.up2 = Up_F(in_channels=int(4*self.image_size),
-                      out_channels= int(self.image_size),f_settings=self.f_settings)
-        self.sa5 = SelfAttention(channels=int(self.image_size), 
-                                 size=int(self.image_size/2))
-        self.up3 = Up_F(in_channels=int(2*self.image_size), 
-                      out_channels=int(self.image_size),f_settings=self.f_settings)
-        self.sa6 = SelfAttention(channels=int(self.image_size), 
-                                 size=int(self.image_size))
-        self.outc = nn.Conv2d(in_channels=int(self.image_size), 
-                              out_channels=c_out, kernel_size=1)
+            self.up1 = Up_F(in_channels=int(8*self.image_size), 
+                        out_channels=int(2*self.image_size),f_settings=self.f_settings)
+            self.sa4 = SelfAttention(channels=int(2*self.image_size), 
+                                    size=int(self.image_size/4))
+            self.up2 = Up_F(in_channels=int(4*self.image_size),
+                        out_channels= int(self.image_size),f_settings=self.f_settings)
+            self.sa5 = SelfAttention(channels=int(self.image_size), 
+                                    size=int(self.image_size/2))
+            self.up3 = Up_F(in_channels=int(2*self.image_size), 
+                        out_channels=int(self.image_size),f_settings=self.f_settings)
+            self.sa6 = SelfAttention(channels=int(self.image_size), 
+                                    size=int(self.image_size))
+            self.outc = nn.Conv2d(in_channels=int(self.image_size), 
+                                out_channels=c_out, kernel_size=1)
+        elif variant==3:
+            if self.f_settings is None:
+                raise ValueError("f_settings is empty")
+            
+            print(f'Variant {variant} Modified UNet: filters around gelu + filters in up or downsampling')
+            self.inc = DoubleConv_F(in_channels=c_in, 
+                              out_channels=int(self.image_size),f_settings=self.f_settings )
+            self.down1 = Down_FFF(in_channels=int(self.image_size),
+                            out_channels= int(2*self.image_size),f_settings=self.f_settings)
+            self.sa1 = SelfAttention(channels=int(2*self.image_size), 
+                                    size=int(self.image_size/2))
+            self.down2 = Down_FFF(in_channels=int(2*self.image_size),
+                            out_channels= int(4*self.image_size),f_settings=self.f_settings)
+            self.sa2 = SelfAttention(channels=int(4*self.image_size), 
+                                    size=int(self.image_size/4))
+            self.down3 = Down_FFF(in_channels=int(4*self.image_size), 
+                            out_channels=int(4*self.image_size),f_settings=self.f_settings)
+            self.sa3 = SelfAttention(channels=int(4*self.image_size), 
+                                    size=int(self.image_size/8))
+
+            self.bot1 = DoubleConv_F(in_channels=int(4*self.image_size),
+                                out_channels=int(8*self.image_size),f_settings=self.f_settings)
+            self.bot2 = DoubleConv_F(in_channels=int(8*self.image_size), 
+                                out_channels=int(8*self.image_size),f_settings=self.f_settings)
+            self.bot3 = DoubleConv_F(in_channels=int(8*self.image_size),
+                                out_channels=int(4*self.image_size),f_settings=self.f_settings)
+
+            self.up1 = Up_FFF(in_channels=int(8*self.image_size), 
+                        out_channels=int(2*self.image_size),f_settings=self.f_settings)
+            self.sa4 = SelfAttention(channels=int(2*self.image_size), 
+                                    size=int(self.image_size/4))
+            self.up2 = Up_FFF(in_channels=int(4*self.image_size),
+                        out_channels= int(self.image_size),f_settings=self.f_settings)
+            self.sa5 = SelfAttention(channels=int(self.image_size), 
+                                    size=int(self.image_size/2))
+            self.up3 = Up_FFF(in_channels=int(2*self.image_size), 
+                        out_channels=int(self.image_size),f_settings=self.f_settings)
+            self.sa6 = SelfAttention(channels=int(self.image_size), 
+                                    size=int(self.image_size))
+            self.outc = nn.Conv2d(in_channels=int(self.image_size), 
+                                out_channels=c_out, kernel_size=1)
         # for conditional Unet
         if num_classes is not None:
             print("Conditional UNet")
@@ -181,7 +212,7 @@ class UNet_F(nn.Module):
         else:
             print("Unconditional UNet")
         
-        
+
     def pos_encoding(self, t, channels):
         inv_freq = 1.0 / (
             10000

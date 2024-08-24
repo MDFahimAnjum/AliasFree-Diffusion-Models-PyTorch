@@ -146,3 +146,11 @@ def save_gen_images(path_str,data,fileno):
 
         # Optionally, print out the filename to confirm
         print(f"Saved: {filename}")
+
+def image_data(x):
+        if x.shape[1]>1:
+            return x.squeeze().permute(1, 2, 0).cpu()#.numpy()
+        elif x.shape[1]==1:
+            return x.squeeze().cpu()#.numpy()
+        else:
+            return None
