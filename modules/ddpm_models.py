@@ -205,6 +205,50 @@ class UNet(nn.Module):
                                     size=int(self.image_size))
             self.outc = nn.Conv2d(in_channels=int(self.image_size), 
                                 out_channels=c_out, kernel_size=1)
+        elif variant==4:
+            if self.f_settings is None:
+                raise ValueError("f_settings is empty")
+            
+            print(f'Variant {variant} Modified UNet: filters around gelu + filters in up or downsampling + groupnorm')
+            self.inc = DoubleConv_F4(in_channels=c_in, 
+                              out_channels=int(self.image_size),f_settings=self.f_settings )
+            self.down1 = Down_F4(in_channels=int(self.image_size),
+                            out_channels= int(2*self.image_size),f_settings=self.f_settings)
+            self.sa1 = SelfAttention(channels=int(2*self.image_size), 
+                                    size=int(self.image_size/2))
+            self.down2 = Down_F4(in_channels=int(2*self.image_size),
+                            out_channels= int(4*self.image_size),f_settings=self.f_settings)
+            self.sa2 = SelfAttention(channels=int(4*self.image_size), 
+                                    size=int(self.image_size/4))
+            self.down3 = Down_F4(in_channels=int(4*self.image_size), 
+                            out_channels=int(4*self.image_size),f_settings=self.f_settings)
+            self.sa3 = SelfAttention(channels=int(4*self.image_size), 
+                                    size=int(self.image_size/8))
+
+            self.bot1 = DoubleConv_F4(in_channels=int(4*self.image_size),
+                                out_channels=int(8*self.image_size),f_settings=self.f_settings)
+            self.bot2 = DoubleConv_F4(in_channels=int(8*self.image_size), 
+                                out_channels=int(8*self.image_size),f_settings=self.f_settings)
+            self.bot3 = DoubleConv_F4(in_channels=int(8*self.image_size),
+                                out_channels=int(4*self.image_size),f_settings=self.f_settings)
+
+            self.up1 = Up_F4(in_channels=int(8*self.image_size), 
+                        out_channels=int(2*self.image_size),f_settings=self.f_settings)
+            self.sa4 = SelfAttention(channels=int(2*self.image_size), 
+                                    size=int(self.image_size/4))
+            self.up2 = Up_F4(in_channels=int(4*self.image_size),
+                        out_channels= int(self.image_size),f_settings=self.f_settings)
+            self.sa5 = SelfAttention(channels=int(self.image_size), 
+                                    size=int(self.image_size/2))
+            self.up3 = Up_F4(in_channels=int(2*self.image_size), 
+                        out_channels=int(self.image_size),f_settings=self.f_settings)
+            self.sa6 = SelfAttention(channels=int(self.image_size), 
+                                    size=int(self.image_size))
+            self.outc = nn.Conv2d(in_channels=int(self.image_size), 
+                                out_channels=c_out, kernel_size=1)
+        else:
+            raise ValueError("variant value must be between 0 and 4")
+        
         # for conditional Unet
         if num_classes is not None:
             print("Conditional UNet")

@@ -35,14 +35,14 @@ params={
     'dataset_dir':  datapath
 }
 
-ddpm_run(params)
+# ddpm_run(params)
 
 params['f_kernel']=3
 params['f_beta']=2
 params['f_down']=np.pi/2
 params['f_up']=np.pi/2
 
-unet_v_all=[1,2,3]
+unet_v_all=[4]#[1,2,3,4]
 
 for unet_v in unet_v_all:
     params['unet_v']=unet_v

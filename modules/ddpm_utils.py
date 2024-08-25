@@ -168,6 +168,59 @@ class DoubleConv_F(nn.Module):
             return x
             #return self.double_conv(x)
 
+class DoubleConv_F4(nn.Module):
+    def __init__(self, in_channels, out_channels, mid_channels=None, residual=False,f_settings=None):
+        super().__init__()
+        self.residual = residual
+        self.f_settings=f_settings
+        self.jinc_filter = circularLowpassKernel(omega_c=self.f_settings['omega_c_down'],
+                                                 N=self.f_settings['kernel_size'], 
+                                                 beta=self.f_settings['kaiser_beta'])
+        self.sinc_filter = circularLowpassKernel(omega_c=self.f_settings['omega_c_up'],
+                                                 N=self.f_settings['kernel_size'], 
+                                                 beta=self.f_settings['kaiser_beta'])
+
+        if not mid_channels:
+            mid_channels = out_channels
+
+        self.conv1=nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False)
+        self.norm1=nn.GroupNorm(1, mid_channels)
+        self.gelu= nn.GELU()
+        self.conv2=nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False)
+        self.norm2=nn.GroupNorm(1, out_channels)
+
+    def forward(self, x):
+        if self.residual:
+            residual=x
+            x=self.conv1(x)
+            #x=self.norm1(x)
+            x = custom_upsample(x, self.sinc_filter)
+            x=self.norm1(x) # added
+            x=self.gelu(x)
+            x = custom_downsample(x, self.jinc_filter)
+            #x=self.norm1(x) # added
+            x = self.conv2(x)
+            x = self.norm2(x)
+            x = x + residual
+            x = custom_upsample(x, self.sinc_filter)
+            x = self.norm2(x) # added
+            x = F.gelu(x)
+            x = custom_downsample(x, self.jinc_filter)
+            #x = self.norm2(x) # added
+            return x
+            # return F.gelu(x + self.double_conv(x))
+        else:
+            x=self.conv1(x)
+            #x=self.norm1(x)
+            x = custom_upsample(x, self.sinc_filter)
+            x=self.norm1(x) # added
+            x=self.gelu(x)
+            x = custom_downsample(x, self.jinc_filter)
+            #x=self.norm1(x) # added
+            x = self.conv2(x)
+            x = self.norm2(x)
+            return x
+            #return self.double_conv(x)
 
 class Down(nn.Module):
     def __init__(self, in_channels, out_channels, emb_dim=256):
@@ -388,6 +441,70 @@ class Up_FFF(nn.Module):
         x = self.conv(x)
         emb = self.emb_layer(t)[:, :, None, None].repeat(1, 1, x.shape[-2], x.shape[-1])
         return x + emb
+
+class Down_F4(nn.Module):
+    def __init__(self, in_channels, out_channels, emb_dim=256,f_settings=None):
+        super().__init__()
+        self.f_settings=f_settings
+        # Generate the 2D Jinc filter with Kaiser window
+        self.jinc_filter = circularLowpassKernel(omega_c=self.f_settings['omega_c_down'],
+                                                 N=self.f_settings['kernel_size'], 
+                                                 beta=self.f_settings['kaiser_beta'])
+
+        self.conv = nn.Sequential(
+            DoubleConv_F4(in_channels, in_channels, residual=True,f_settings=self.f_settings),
+            DoubleConv_F4(in_channels, out_channels,f_settings=self.f_settings),
+        )
+
+        self.emb_layer = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(
+                emb_dim,
+                out_channels
+            ),
+        )
+        self.norm1=nn.GroupNorm(1, in_channels)
+
+    def forward(self, x, t):
+        # Downsample using the custom Jinc-based filter
+        x = custom_downsample(x, self.jinc_filter)
+        #x=self.norm1(x) # added
+        x = self.conv(x)
+        emb = self.emb_layer(t)[:, :, None, None].repeat(1, 1, x.shape[-2], x.shape[-1])
+        return x + emb
+
+class Up_F4(nn.Module):
+    def __init__(self, in_channels, out_channels, emb_dim=256,f_settings=None):
+        super().__init__()
+        self.f_settings=f_settings
+        # Generate the 2D sinc filter with Kaiser window
+        self.sinc_filter = circularLowpassKernel(omega_c=self.f_settings['omega_c_up'],
+                                                 N=self.f_settings['kernel_size'], 
+                                                 beta=self.f_settings['kaiser_beta'])
+
+        self.conv = nn.Sequential(
+            DoubleConv_F4(in_channels, in_channels, residual=True,f_settings=self.f_settings),
+            DoubleConv_F4(in_channels, out_channels, in_channels // 2,f_settings=self.f_settings),
+        )
+
+        self.emb_layer = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(
+                emb_dim,
+                out_channels
+            ),
+        )
+        self.norm1=nn.GroupNorm(1, in_channels // 2)
+
+    def forward(self, x, skip_x, t):
+        # Upsample using the custom filter
+        x = custom_upsample(x, self.sinc_filter)
+        #x=self.norm1(x) # added
+        x = torch.cat([skip_x, x], dim=1)
+        x = self.conv(x)
+        emb = self.emb_layer(t)[:, :, None, None].repeat(1, 1, x.shape[-2], x.shape[-1])
+        return x + emb
+
 # training def
 def train(args,model_path=None,dataloader=None,model=None,diffusion=None):
     setup_logging(args.run_name)
