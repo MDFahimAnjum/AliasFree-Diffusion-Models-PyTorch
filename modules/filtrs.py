@@ -12,6 +12,8 @@ def jinc_filter_2d(size=6, beta=14):
     sinc_filter_1d = np.sinc(np.linspace(-size / 2, size / 2, size))
     window = kaiser(size, beta)
     jinc_filter_2d = np.outer(sinc_filter_1d * window, sinc_filter_1d * window)
+    # Normalize the kernel
+    jinc_filter_2d = jinc_filter_2d / np.sum(jinc_filter_2d)
     return torch.tensor(jinc_filter_2d, dtype=torch.float32)
 
 def circularLowpassKernel(omega_c=np.pi, N=6,beta=None):  # omega = cutoff frequency in radians (pi is max), N = horizontal size of the kernel, also its vertical size.
@@ -29,7 +31,8 @@ def circularLowpassKernel(omega_c=np.pi, N=6,beta=None):  # omega = cutoff frequ
 
         # Apply the Kaiser window to the kernel
         kernel *= kaiser_window_2d
-    
+    # Normalize the kernel
+    kernel=kernel/ np.sum(kernel)
     return torch.tensor(kernel, dtype=torch.float32)
 
 def plot_filter_and_response(kernel,show_freq=True):

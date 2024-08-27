@@ -221,6 +221,8 @@ def ddpm_run(params):
         fig, axs = plt.subplots(1, len(images), figsize=(3*len(images), 3))
 
         for i,img in enumerate(images):
+            img = (img.clamp(-1, 1) + 1) / 2
+            img= (img * 255).type(torch.uint8)
             axs[i].imshow(img,
                         cmap='gray'
                         )
@@ -263,6 +265,8 @@ def ddpm_run(params):
         fig, axs = plt.subplots(1, len(images), figsize=(3*len(images), 3))
 
         for i,img in enumerate(images):
+            img = (img.clamp(-1, 1) + 1) / 2
+            img= (img * 255).type(torch.uint8)
             axs[i].imshow(img,
                         cmap='gray'
                         )
