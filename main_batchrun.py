@@ -1,6 +1,6 @@
 
 #%% 
-from ddpm_tasks import ddpm_run
+from modules.ddpm_tasks import ddpm_run
 import numpy as np
 import os
 
