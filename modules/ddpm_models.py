@@ -5,7 +5,8 @@ import torch.nn.functional as F
 from modules.ddpm_utils import *
 import logging
 from tqdm import tqdm
-
+from scipy import ndimage
+from modules.filtrs import *
 
 """
 | Layer              | Input Size (Channels x H x W)     | Output Size (Channels x H x W)        | Notes                                                                                                                                      |
@@ -308,6 +309,7 @@ class Diffusion:
         self.beta = self.prepare_noise_schedule().to(device)
         self.alpha = 1. - self.beta
         self.alpha_hat = torch.cumprod(self.alpha, dim=0)
+        self.filter = None #circularLowpassKernel(omega_c=np.pi/4, N=11,  beta=None)
 
     def prepare_noise_schedule(self):
         return torch.linspace(self.beta_start, self.beta_end, self.noise_steps)
@@ -347,8 +349,45 @@ class Diffusion:
         result = (result * 255).type(torch.uint8)
         return result
 
-    def sample(self, model, n,image_channels):
+    def sample(self, model, n,image_channels,theta=None):
         logging.info(f"Sampling {n} new images....")
+        if theta is not None:
+            logging.info(f'Theta {theta} provided. Rotation will be applied.')
+            theta_step=theta/self.noise_steps
+        model.eval()
+        with torch.no_grad():
+            x = torch.randn((n, image_channels, self.img_size, self.img_size)).to(self.device)
+            for i in tqdm(reversed(range(1, self.noise_steps)), position=0):
+                t = (torch.ones(n) * i).long().to(self.device)
+                predicted_noise = model(x, t)
+                #if theta is not None:
+                #    predicted_noise=self.rotate_2d_matrix(predicted_noise,theta_step,self.device)
+                #    x=self.rotate_2d_matrix(x,theta_step,self.device)
+                alpha = self.alpha[t][:, None, None, None]
+                alpha_hat = self.alpha_hat[t][:, None, None, None]
+                beta = self.beta[t][:, None, None, None]
+                if i > 1:
+                    noise = torch.randn_like(x)
+                else:
+                    noise = torch.zeros_like(x)
+                x = 1 / torch.sqrt(alpha) * (x - ((1 - alpha) / (torch.sqrt(1 - alpha_hat))) * predicted_noise) + torch.sqrt(beta) * noise
+                if theta is not None:
+                    x=self.rotate_2d_matrix(x,theta_step,self.filter)
+        model.train()
+        x = (x.clamp(-1, 1) + 1) / 2
+        x = (x * 255).type(torch.uint8)
+        return x
+
+    # under development:
+    def sample_shift(self, model, n,image_channels,shift=None):
+        logging.info(f"Sampling {n} new images....")
+        if shift==0:
+            shift=None
+        if shift is not None:
+            logging.info(f'Shift {shift} provided. Translation will be applied.')
+            shift_duration=np.abs(shift)/self.noise_steps
+            shift_indices=np.round(np.arange(0,self.noise_steps,shift_duration)).astype(int)
+            shift_indices=shift_indices[1:] # not going to apply shift in the first partition
         model.eval()
         with torch.no_grad():
             x = torch.randn((n, image_channels, self.img_size, self.img_size)).to(self.device)
@@ -363,9 +402,28 @@ class Diffusion:
                 else:
                     noise = torch.zeros_like(x)
                 x = 1 / torch.sqrt(alpha) * (x - ((1 - alpha) / (torch.sqrt(1 - alpha_hat))) * predicted_noise) + torch.sqrt(beta) * noise
+                
+                if shift is not None and np.isin(i,shift_indices):
+                    # we are doing only horizontal shift with 1 pixel each time.
+                    x=self.shift_2d_matrix(x,1*np.sign(shift),0,self.device)
         model.train()
         x = (x.clamp(-1, 1) + 1) / 2
         x = (x * 255).type(torch.uint8)
         return x
 
-
+    @staticmethod
+    def rotate_2d_matrix(matrix, degrees,filter=None):
+        device=matrix.device
+        #matrix=custom_upsample(matrix,filter,factor=4)
+        matrix=matrix.cpu()    
+        rotated_matrix = ndimage.rotate(input=matrix, angle=degrees, axes=(2,3),reshape=False,mode='grid-wrap')
+        rotated_matrix=torch.from_numpy(rotated_matrix).to(device)
+        #rotated_matrix=custom_downsample(rotated_matrix,filter,factor=4)
+        return rotated_matrix
+    
+    @staticmethod
+    def shift_2d_matrix(matrix,hshift,vshift,device):
+        matrix=matrix.cpu() 
+        shifted_matrix=ndimage.shift(input=matrix,shift=(0,0,vshift,hshift),mode='grid-wrap')
+        shifted_matrix=torch.from_numpy(shifted_matrix).to(device)
+        return shifted_matrix

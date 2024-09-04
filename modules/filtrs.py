@@ -6,6 +6,7 @@ from scipy.special import j1
 import numpy as np 
 import torch
 from matplotlib import pyplot as plt
+import torch.nn.functional as F
 
 def jinc_filter_2d(size=6, beta=14):
     # Similar to the sinc filter, create a 2D jinc filter (simplified)
@@ -65,4 +66,30 @@ def plot_filter_and_response(kernel,show_freq=True):
     
     plt.tight_layout()
     plt.show()
+
+
+def custom_downsample( x, jinc_filter,factor=2):
+    # Apply the Jinc filter before downsampling
+    jinc_filter = jinc_filter[None, None, :, :].to(x.device)  # Shape (1, 1, filter_size, filter_size)
+    jinc_filter = jinc_filter.repeat(x.size(1), 1, 1, 1)  # Match number of channels
+    x = F.conv2d(x, jinc_filter, padding='same', groups=x.size(1))
+    x = x[:, :, ::factor, ::factor]
+    return x
+
+def custom_upsample(x, sinc_filter,factor=2):
+    # Upsample using zero padding followed by applying the sinc filter
+    # Get the original dimensions
+    batch_size, channels, height, width = x.shape
+
+    # Create a new tensor with double the height and width filled with zeros
+    upsampled = torch.zeros(batch_size, channels, height * factor, width * factor, device=x.device)
+
+    # Assign the original values to the correct positions
+    upsampled[:, :, ::factor, ::factor] = x
+    x=upsampled
+    # Apply the sinc filter (low-pass filter)
+    sinc_filter = sinc_filter[None, None, :, :].to(x.device)  # Shape (1, 1, filter_size, filter_size)
+    sinc_filter = sinc_filter.repeat(x.size(1), 1, 1, 1)  # Match number of channels
+    x = F.conv2d(x, sinc_filter, padding='same', groups=x.size(1))
+    return x    
 

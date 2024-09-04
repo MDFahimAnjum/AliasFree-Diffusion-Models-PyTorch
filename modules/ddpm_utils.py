@@ -94,32 +94,6 @@ class DoubleConv(nn.Module):
         else:
             return self.double_conv(x)
 
-
-def custom_downsample( x, jinc_filter):
-        # Apply the Jinc filter before downsampling
-        jinc_filter = jinc_filter[None, None, :, :].to(x.device)  # Shape (1, 1, filter_size, filter_size)
-        jinc_filter = jinc_filter.repeat(x.size(1), 1, 1, 1)  # Match number of channels
-        x = F.conv2d(x, jinc_filter, padding='same', groups=x.size(1))
-        x = x[:, :, ::2, ::2]
-        return x
-
-def custom_upsample(x, sinc_filter):
-    # Upsample using zero padding followed by applying the sinc filter
-    # Get the original dimensions
-    batch_size, channels, height, width = x.shape
-
-    # Create a new tensor with double the height and width filled with zeros
-    upsampled = torch.zeros(batch_size, channels, height * 2, width * 2, device=x.device)
-
-    # Assign the original values to the correct positions
-    upsampled[:, :, ::2, ::2] = x
-    x=upsampled
-    # Apply the sinc filter (low-pass filter)
-    sinc_filter = sinc_filter[None, None, :, :].to(x.device)  # Shape (1, 1, filter_size, filter_size)
-    sinc_filter = sinc_filter.repeat(x.size(1), 1, 1, 1)  # Match number of channels
-    x = F.conv2d(x, sinc_filter, padding='same', groups=x.size(1))
-    return x    
-
 class DoubleConv_F(nn.Module):
     def __init__(self, in_channels, out_channels, mid_channels=None, residual=False,f_settings=None):
         super().__init__()
