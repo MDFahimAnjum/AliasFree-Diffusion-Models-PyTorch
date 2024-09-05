@@ -20,11 +20,11 @@ Our enhancements in the diffusion Unet architecture produces better images compa
   <tr>
     <td style="text-align: center;">
     <p><strong>Baseline</strong></p>
-      <img src="sample_results/CIFAR_0_collage_0.png" alt="Original Image" width="500" height="350">
+      <img src="sample_results/CIFAR_0_collage_0.png" alt="Original Image" width="500" height="500">
     </td>
     <td style="text-align: center;">
     <p><strong>Improved</strong></p>
-      <img src="sample_results/CIFAR_3_collage_0.png" alt="Improved Image" width="500" height="350">
+      <img src="sample_results/CIFAR_3_collage_0.png" alt="Improved Image" width="500" height="500">
     </td>
   </tr>
 </table>
