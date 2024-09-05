@@ -68,6 +68,8 @@ We employed a novel sampling process that allows for user-controlled rotation of
 4. **Combining Alias-Free Resampling and Nonlinear Enhancements** (Config D | `version=3`)
 5. **Improving Rotational Consistency** (Config E)
 
+![Architectures](sample_results/arch1.png)
+
 ## Theoretical Foundations
 
 ### The Role of Resampling in Nonlinear Transformations
