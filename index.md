@@ -11,6 +11,9 @@ This project investigates the integration of alias-free resampling techniques, i
 - **Rotation Equivariance**: Enabled consistent image generation across various rotations, showcasing the model's enhanced rotational capabilities.
 - **Efficient Design**: Achieved performance improvements through strategic architectural design, avoiding the need for additional trainable parameters.
 
+
+You can find our implementation and codebase on [GitHub](https://github.com/MDFahimAnjum/AliasFree-Diffusion-Models-PyTorch).
+
 ## Results
 ### Standard Image Synthesis
 
@@ -83,6 +86,8 @@ We trained and evaluated our models on the following datasets:
 1. [CIFAR-10](https://www.kaggle.com/datasets/joaopauloschuler/cifar10-64x64-resized-via-cai-super-resolution?select=cifar10-32) (10,000 test samples | 32 $\times$ 32)
 2. [MNIST](https://yann.lecun.com/exdb/mnist/) (19,999 samples | 32 $\times$ 32 | CSV format)
 3. [MNIST-M](https://www.kaggle.com/datasets/aquibiqbal/mnistm/data) (6,000 samples | 32 $\times$ 32)
+
+You can download our datasets directly from [here](https://www.dropbox.com/scl/fi/ll19yhimdi1jscbft7ttm/Diffusion-Model-Datasets.zip?rlkey=d6ahl9ry5brxd9or7rz1emugm&st=a8n19949&dl=0).
 
 ## How to Run
 
