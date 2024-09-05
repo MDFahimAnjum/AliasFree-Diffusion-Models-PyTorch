@@ -32,11 +32,11 @@ This project investigates the integration of alias-free resampling techniques, i
   <tr>
     <td style="text-align: center;">
     <p><strong>Using Baseline UNet</strong></p>
-      <img src="sample_results/video_MNIST_b16b0_0.gif" alt="Original Image" width="500" height="350">
+      <img src="sample_results/video_MNIST_b16b0_0.gif" alt="Original Image" width="250" height="250">
     </td>
     <td style="text-align: center;">
     <p><strong>Using Improved UNet</strong></p>
-      <img src="sample_results/video_MNIST_b16b0_3.gif" alt="Improved Image" width="500" height="350">
+      <img src="sample_results/video_MNIST_b16b0_3.gif" alt="Improved Image" width="250" height="250">
     </td>
   </tr>
 </table>
@@ -45,11 +45,11 @@ This project investigates the integration of alias-free resampling techniques, i
   <tr>
     <td style="text-align: center;">
     <p><strong>Using Baseline UNet</strong></p>
-      <img src="sample_results/video_MNISTM_b16b0_0.gif" alt="Original Image" width="500" height="350">
+      <img src="sample_results/video_MNISTM_b16b0_0.gif" alt="Original Image" width="250" height="250">
     </td>
     <td style="text-align: center;">
     <p><strong>Using Improved UNet</strong></p>
-      <img src="sample_results/video_MNISTM_b16b2N_3.gif" alt="Improved Image" width="500" height="350">
+      <img src="sample_results/video_MNISTM_b16b2N_3.gif" alt="Improved Image" width="250" height="250">
     </td>
   </tr>
 </table>
