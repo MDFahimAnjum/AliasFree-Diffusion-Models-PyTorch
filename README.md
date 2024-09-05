@@ -7,11 +7,15 @@ This project investigates the integration of alias-free resampling techniques, i
 - **Alias-Free Resampling**: Integrated StyleGAN3-inspired, signal-processing-based alias-free resampling into the UNet architecture, enhancing performance without increasing model complexity.
 - **Improved Stability and Output Quality**: Advanced filtering layers lead to more stable training and higher quality outputs.
 - **Superior Performance**: Demonstrated improved performance across multiple UNet configurations on MNIST, CIFAR-10, and MNIST-M datasets.
+- **Enhanced Sampling Process**: Improved the sampling process to allow user-controlled rotation of the generated images.
 - **Rotation Equivariance**: Enabled consistent image generation across various rotations, showcasing the model's enhanced rotational capabilities.
 - **Efficient Design**: Achieved performance improvements through strategic architectural design, avoiding the need for additional trainable parameters.
 
 ## Results
 ### Standard Image Synthesis
+
+Our enhancements in the diffusion Unet architecture produces better images compared to the baseline.
+
 <table>
   <tr>
     <td style="text-align: center;">
@@ -27,6 +31,8 @@ This project investigates the integration of alias-free resampling techniques, i
 
 
 ### Rotation Equivariance
+
+We employed a novel sampling process that allows for user-controlled rotation of generated images. This approach ensures frame-to-frame consistency, enhancing the performance of our improved diffusion architecture.
 
 <table>
   <tr>
