@@ -16,6 +16,7 @@ from modules.ddpm_utils import *
 from modules.ddpm_models import *
 import csv
 import gc
+import imageio
 
 def ddpm_run(params):
     # set params
@@ -340,3 +341,68 @@ def ddpm_run(params):
     #free space
     torch.cuda.empty_cache()
     gc.collect()
+
+
+def rotation_results(model_data,thatas):
+    args=model_data['args']
+    unet_variant=model_data['unet_v']
+    f_settings=model_data['f_settings']
+    modelpath=model_data['modelpath']
+    random_seed=model_data['seed']
+    
+    set_seed(random_seed)
+    model = UNet(c_in=args.image_channels, c_out=args.image_channels,
+                image_size=args.image_size,f_settings=f_settings,device=args.device,variant=unet_variant).to(args.device)
+    ckpt = torch.load(modelpath)
+    model.load_state_dict(ckpt)
+    diffusion = Diffusion(noise_steps=args.noise_steps,img_size=args.image_size, device=args.device)
+
+    # sample images
+
+    x_all=[]
+    for th_i in tqdm(range(thatas.shape[0]),position=0):
+        set_seed(random_seed)
+        x = diffusion.sample(model, n=4,image_channels=args.image_channels,theta=thatas[th_i])
+        x_all.append(x)
+    return x_all
+
+def shift_results(model_data,shift):
+    args=model_data['args']
+    unet_variant=model_data['unet_v']
+    f_settings=model_data['f_settings']
+    modelpath=model_data['modelpath']
+    random_seed=model_data['seed']
+    
+    set_seed(random_seed)
+    model = UNet(c_in=args.image_channels, c_out=args.image_channels,
+                image_size=args.image_size,f_settings=f_settings,device=args.device,variant=unet_variant).to(args.device)
+    ckpt = torch.load(modelpath)
+    model.load_state_dict(ckpt)
+    diffusion = Diffusion(noise_steps=args.noise_steps,img_size=args.image_size, device=args.device)
+
+    # sample images
+
+    x_all=[]
+    for th_i in tqdm(range(shift.shape[0]),position=0):
+        set_seed(random_seed)
+        x = diffusion.sample_shift(model, n=4,image_channels=args.image_channels,shift=shift[th_i])
+        x_all.append(x)
+    return x_all
+
+
+# Convert tensor to NumPy array
+
+def make_video(input_tensor,vname,fps=1):
+    frames = input_tensor.cpu().numpy()
+
+    # Normalize the frames to [0, 255] and convert to uint8
+    frames = (frames - frames.min()) / (frames.max() - frames.min())
+    frames = (frames * 255).astype(np.uint8)
+
+    # Create a list of frames as images (each frame is 32x32)
+    images = [np.transpose(frame,(1,2,0)) for frame in frames]  # Extract the single channel for each frame
+
+    # Create the video directly from the frames
+    imageio.mimsave(f'{vname}.mp4', images, fps=fps, format='mp4')
+
+    print(f"Video created and saved as '{vname}.mp4'")

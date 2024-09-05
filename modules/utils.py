@@ -11,6 +11,7 @@ import random
 import numpy as np 
 from torchvision.transforms import ToPILImage
 from pathlib import Path
+import subprocess
 
 def plot_images(images):
     plt.figure(figsize=(32, 32))
@@ -122,6 +123,52 @@ def save_dataset_MNIST(path_str,dataset):
         # Optionally, print out the filename to confirm
         print(f"Saved: {filename}")
 
+def save_dataset_MNIST_CSV2PNG(csv_path,save_path):
+    # Load the MNIST small dataset from CSV
+    data = pd.read_csv(csv_path)
+
+    # Separate features and labels
+    labels = torch.tensor(data.iloc[:, 0].values, dtype=torch.long)
+    features = torch.tensor(data.iloc[:, 1:].values / 255.0, dtype=torch.float32).view(-1, 28, 28)
+    # Add a channel dimension (C=1) to the features
+    features = features.unsqueeze(1)  # Now size is [batch_size, 1, 28, 28]
+    # Define the transforms
+    transform = transforms.Compose([
+        # Resizes images
+        transforms.Resize(32),  # args.image_size + 1/4 *args.image_size
+        # Randomly crops images to args.image_size, with a scaling factor between 0.8 and 1.0.
+        #transforms.RandomResizedCrop(args.image_size, scale=(0.8, 1.0)),
+        #transforms.Normalize((0.5,), (0.5,))  # Normalize with mean and std deviation for MNIST (single channel)
+    ])
+
+    # Apply transforms to the dataset
+    features = torch.stack([transform(image) for image in features])
+
+    # Create a TensorDataset
+    dataset = TensorDataset(features, labels)
+
+
+    save_dir = Path(save_path)
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    # Initialize transform to convert tensors to PIL images
+    to_pil = ToPILImage()
+
+    # Iterate over the dataset and save each image
+    for i, (image, label) in enumerate(dataset):
+        # Convert tensor to PIL image
+        pil_image = to_pil(image)
+        
+        # Define the image filename
+        filename = save_dir / f"image_{i}.png"
+        
+        # Save the image
+        pil_image.save(filename, format="PNG")
+
+        # Optionally, print out the filename to confirm
+        print(f"Saved: {filename}")
+
+
 def save_gen_images(path_str,data,fileno):
     save_dir = Path(path_str)
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -182,3 +229,13 @@ def make_collage(filedir,savedir,images_per_collage,total_image,image_size):
         # Save the collage
         collage.save(savedir+f'_collage_{start_no}.png')
         print(f'_collage_{start_no}.png')
+        
+def save_gif(filename,fps,scale):
+    command = [
+        'ffmpeg', '-i', f'{filename}.mp4',
+        '-vf', f'fps={fps},scale={scale}:-1:flags=lanczos',
+        '-c:v', 'gif', f'{filename}.gif'
+    ]
+
+    # Run the command
+    subprocess.run(command)
