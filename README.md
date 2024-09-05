@@ -1,55 +1,92 @@
-# Diffusion Models
-This is an easy-to-understand implementation of diffusion models within 100 lines of code. Different from other implementations, this code doesn't use the lower-bound formulation for sampling and strictly follows Algorithm 1 from the [DDPM](https://arxiv.org/pdf/2006.11239.pdf) paper, which makes it extremely short and easy to follow. There are two implementations: `conditional` and `unconditional`. Furthermore, the conditional code also implements Classifier-Free-Guidance (CFG) and Exponential-Moving-Average (EMA). Below you can find two explanation videos for the theory behind diffusion models and the implementation.
+# Advancing Diffusion Models: Alias-Free Resampling and Enhanced Rotational Equivariance
 
-<a href="https://www.youtube.com/watch?v=HoKDTa5jHvg">
-   <img alt="Qries" src="https://user-images.githubusercontent.com/61938694/191407922-f613759e-4bea-4ac9-9135-d053a6312421.jpg"
-   width="300">
-</a>
+This project investigates the integration of alias-free resampling techniques, inspired by StyleGAN3, into the UNet architecture of Diffusion models. Our approach focuses on improving model performance without introducing new trainable parameters, maintaining efficiency and simplicity. Our enhanced models outperform standard UNet on MNIST, CIFAR-10, and MNIST-M, with improved rotational equivariance for consistent image generation across rotations.
 
-<a href="https://www.youtube.com/watch?v=TBCRlnwJtZU">
-   <img alt="Qries" src="https://user-images.githubusercontent.com/61938694/191407849-6d0376c7-05b2-43cd-a75c-1280b0e33af1.png"
-   width="300">
-</a>
+### Key Highlights
 
-<hr>
+- **Alias-Free Resampling**: Integrated StyleGAN3-inspired, signal-processing-based alias-free resampling into the UNet architecture, enhancing performance without increasing model complexity.
+- **Improved Stability and Output Quality**: Advanced filtering layers lead to more stable training and higher quality outputs.
+- **Superior Performance**: Demonstrated improved performance across multiple UNet configurations on MNIST, CIFAR-10, and MNIST-M datasets.
+- **Rotation Equivariance**: Enabled consistent image generation across various rotations, showcasing the model's enhanced rotational capabilities.
+- **Efficient Design**: Achieved performance improvements through strategic architectural design, avoiding the need for additional trainable parameters.
 
-## Train a Diffusion Model on your own data:
-### Unconditional Training
-1. (optional) Configure Hyperparameters in ```ddpm.py```
-2. Set path to dataset in ```ddpm.py```
-3. ```python ddpm.py```
+## Results
+### Standard Image Synthesis
+<table>
+  <tr>
+    <td style="text-align: center;">
+    <p><strong>Baseline</strong></p>
+      <img src="sample_results/CIFAR_0_collage_0.png" alt="Original Image" width="500" height="350">
+    </td>
+    <td style="text-align: center;">
+    <p><strong>Improved</strong></p>
+      <img src="sample_results/CIFAR_3_collage_0.png" alt="Improved Image" width="500" height="350">
+    </td>
+  </tr>
+</table>
 
-### Conditional Training
-1. (optional) Configure Hyperparameters in ```ddpm_conditional.py```
-2. Set path to dataset in ```ddpm_conditional.py```
-3. ```python ddpm_conditional.py```
 
-## Sampling
-The following examples show how to sample images using the models trained in the video on the [Landscape Dataset](https://www.kaggle.com/datasets/arnaud58/landscape-pictures). You can download the checkpoints for the models [here](https://drive.google.com/drive/folders/1beUSI-edO98i6J9pDR67BKGCfkzUL5DX?usp=sharing).
-### Unconditional Model
-```python
-    device = "cuda"
-    model = UNet().to(device)
-    ckpt = torch.load("unconditional_ckpt.pt")
-    model.load_state_dict(ckpt)
-    diffusion = Diffusion(img_size=64, device=device)
-    x = diffusion.sample(model, n=16)
-    plot_images(x)
-```
+### Rotation Equivariance
 
-### Conditional Model
-This model was trained on [CIFAR-10 64x64](https://www.kaggle.com/datasets/joaopauloschuler/cifar10-64x64-resized-via-cai-super-resolution) with 10 classes ```airplane:0, auto:1, bird:2, cat:3, deer:4, dog:5, frog:6, horse:7, ship:8, truck:9```
-```python
-    n = 10
-    device = "cuda"
-    model = UNet_conditional(num_classes=10).to(device)
-    ckpt = torch.load("conditional_ema_ckpt.pt")
-    model.load_state_dict(ckpt)
-    diffusion = Diffusion(img_size=64, device=device)
-    y = torch.Tensor([6] * n).long().to(device)
-    x = diffusion.sample(model, n, y, cfg_scale=3)
-    plot_images(x)
-```
-<hr>
+<table>
+  <tr>
+    <td style="text-align: center;">
+    <p><strong>Using Baseline UNet</strong></p>
+      <img src="sample_results/video_MNIST_b16b0_0.gif" alt="Original Image" width="500" height="350">
+    </td>
+    <td style="text-align: center;">
+    <p><strong>Using Improved UNet</strong></p>
+      <img src="sample_results/video_MNIST_b16b0_3.gif" alt="Improved Image" width="500" height="350">
+    </td>
+  </tr>
+</table>
 
-A more advanced version of this code can be found [here](https://github.com/tcapelle/Diffusion-Models-pytorch) by [@tcapelle](https://github.com/tcapelle). It introduces better logging, faster & more efficient training and other nice features and is also being followed by a nice [write-up](https://wandb.ai/capecape/train_sd/reports/Training-a-Conditional-Diffusion-model-from-scratch--VmlldzoyODMxNjE3).
+<table>
+  <tr>
+    <td style="text-align: center;">
+    <p><strong>Using Baseline UNet</strong></p>
+      <img src="sample_results/video_MNISTM_b16b0_0.gif" alt="Original Image" width="500" height="350">
+    </td>
+    <td style="text-align: center;">
+    <p><strong>Using Improved UNet</strong></p>
+      <img src="sample_results/video_MNISTM_b16b2N_3.gif" alt="Improved Image" width="500" height="350">
+    </td>
+  </tr>
+</table>
+
+## Architectural Revisions in Diffusion Models
+
+1. **Baseline Architecture** (Config A | `version=0`)
+2. **Alias-Free Resampling** (Config B | `version=1`)
+3. **Enhanced Nonlinearities via Alias-Free Resampling** (Config C | `version=2`)
+4. **Combining Alias-Free Resampling and Nonlinear Enhancements** (Config D | `version=3`)
+5. **Improving Rotational Consistency** (Config E)
+
+## Theoretical Foundations
+
+### The Role of Resampling in Nonlinear Transformations
+Nonlinearities like GeLU or ReLU in the continuous domain may introduce arbitrarily high frequencies that cannot be represented in the output and a natural solution is to eliminate the offending high-frequency content by convolving with the ideal low-pass filter. However, diffusion networks utilize discrete domain data where pointwise nonlinearity is applied which does not commute with fractional transformations (such as rotation). Therefore, to temporarily approximate a continuous representation, we utilize a proper $2\times$ alias-free upsampling, apply the nonliearity in the higher resolution and finally use a $2\times$ alias-free downsampling for returning to the original discrete space.
+
+
+## Codebase
+Our implementation is built on top of [Diffusion-Models-pytorch](https://github.com/CakeNuthep/Diffusion-Models-pytorch), providing an easy-to-understand codebase. Unlike other implementations, our approach strictly follows Algorithm 1 from the [DDPM](https://arxiv.org/pdf/2006.11239.pdf) paper, avoiding the lower-bound formulation for sampling to maintain simplicity.
+
+## Datasets
+We trained and evaluated our models on the following datasets:
+
+1. [CIFAR-10](https://www.kaggle.com/datasets/joaopauloschuler/cifar10-64x64-resized-via-cai-super-resolution?select=cifar10-32) (10,000 test samples | 32 $\times$ 32)
+2. [MNIST](https://yann.lecun.com/exdb/mnist/) (19,999 samples | 32 $\times$ 32 | CSV format)
+3. [MNIST-M](https://www.kaggle.com/datasets/aquibiqbal/mnistm/data) (6,000 samples | 32 $\times$ 32)
+
+## How to Run
+
+1. **Download the Datasets**: Download the datasets using the provided links.
+2. **Prepare the Datasets**: Extract the datasets and place the root folder in the `/data` directory. For example, the MNIST-M dataset should be located in `/data/MNIST-M/`.
+3. **Train the Models**: Run the `Train.ipynb` notebook.
+    - Model details and training logs will be saved in the `/run` folder.
+    - Sample images generated during training will be saved in the `/results` folder.
+    - Final trained models will be saved in the `/models` folder.
+    - Images generated by the final model will be saved in the `/images` folder.
+    - Optionally, training images can be saved in the `/trdata` folder.
+4. **Inspect Model Details**: Use the `Results.ipynb` notebook to inspect model details, sampling, and denoising processes.
+5. **Evaluate Model Performance**: Run the `Perf_evaluation.ipynb` notebook to assess the model's performance.
