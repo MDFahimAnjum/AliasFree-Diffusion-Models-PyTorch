@@ -37,7 +37,7 @@ def circularLowpassKernel(omega_c=np.pi, N=6,beta=None):  # omega = cutoff frequ
     return torch.tensor(kernel, dtype=torch.float32)
 
 def plot_filter_and_response(kernel,show_freq=True):
-    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+    fig, axs = plt.subplots(1, 2, figsize=(6, 3))
     
     # Plot the kernel
     cax1 = axs[0].imshow(kernel, vmin=-1, vmax=1, cmap='bwr')

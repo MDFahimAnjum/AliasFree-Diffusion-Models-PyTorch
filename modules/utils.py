@@ -27,6 +27,9 @@ def plot_images(images):
         )
     else:
         print('Check inputs. Size should be: n x chan x height x width')
+    # Remove x and y ticks
+    plt.xticks([])
+    plt.yticks([])
     plt.show()
 
 
