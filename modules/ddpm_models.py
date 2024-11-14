@@ -355,6 +355,7 @@ class Diffusion:
             logging.info(f'Theta {theta} provided. Rotation will be applied.')
             theta_step=theta/self.noise_steps
         model.eval()
+        result = []
         with torch.no_grad():
             x = torch.randn((n, image_channels, self.img_size, self.img_size)).to(self.device)
             for i in tqdm(reversed(range(1, self.noise_steps)), position=0):
@@ -373,10 +374,16 @@ class Diffusion:
                 x = 1 / torch.sqrt(alpha) * (x - ((1 - alpha) / (torch.sqrt(1 - alpha_hat))) * predicted_noise) + torch.sqrt(beta) * noise
                 if theta is not None:
                     x=self.rotate_2d_matrix(x,theta_step,self.filter)
+                if(i % 100 == 0):
+                    result.append(x)
         model.train()
+        result.append(x)
         x = (x.clamp(-1, 1) + 1) / 2
         x = (x * 255).type(torch.uint8)
-        return x
+        result = torch.cat(result)
+        result = (result.clamp(-1, 1) + 1) / 2
+        result = (result * 255).type(torch.uint8)
+        return x, result
 
     # under development:
     def sample_shift(self, model, n,image_channels,shift=None):

@@ -311,7 +311,7 @@ def ddpm_run(params):
     diffusion = Diffusion(noise_steps=args.noise_steps,img_size=args.image_size, device=args.device)
 
     # sample images
-    x = diffusion.sample(model, n=6,image_channels=args.image_channels)
+    x,_ = diffusion.sample(model, n=6,image_channels=args.image_channels)
     plot_images(x)
 
     # denoise image
@@ -332,7 +332,7 @@ def ddpm_run(params):
     fileno_start=np.arange(0,total_gen,gen_per_batch)
     for start_no in fileno_start:
         fileno=np.arange(start_no,start_no+gen_per_batch,1)
-        x = diffusion.sample(model, n=gen_per_batch,image_channels=args.image_channels)
+        x,_ = diffusion.sample(model, n=gen_per_batch,image_channels=args.image_channels)
         save_gen_images(gen_savepath,x,fileno)
 
     #make collage
@@ -360,11 +360,13 @@ def rotation_results(model_data,thatas):
     # sample images
 
     x_all=[]
+    results_all=[]
     for th_i in tqdm(range(thatas.shape[0]),position=0):
         set_seed(random_seed)
-        x = diffusion.sample(model, n=4,image_channels=args.image_channels,theta=thatas[th_i])
+        x, results = diffusion.sample(model, n=4,image_channels=args.image_channels,theta=thatas[th_i])
         x_all.append(x)
-    return x_all
+        results_all.append(results)
+    return x_all, results_all
 
 def shift_results(model_data,shift):
     args=model_data['args']
