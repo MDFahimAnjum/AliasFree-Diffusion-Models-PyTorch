@@ -2,6 +2,8 @@
 
 This repository implements a novel approach to diffusion-based image generation by integrating alias-free resampling techniques. Recent advancements in diffusion models have brought remarkable improvements in image synthesis; however, challenges with model-induced artifacts and image fidelity stability persist. We hypothesize that the primary cause of these issues is the improper resampling operation that introduces aliasing in the diffusion model and a careful alias-free resampling dictated by image processing theory can improve the model's performance in image synthesis.
 
+Original paper: [arxiv link](https://arxiv.org/abs/2411.09174)
+
 Alias-Free Diffusion Model introduces alias-free resampling layers directly into the UNet architecture of diffusion models, grounded in established image processing theory. This modification requires no additional trainable parameters, keeping the model lightweight and computationally efficient.
 
 ### Key Highlights
@@ -101,6 +103,18 @@ You can download our datasets directly from [here](https://www.dropbox.com/scl/f
 4. **Inspect Model Details**: Use the `Results.ipynb` notebook to inspect model details, sampling, and denoising processes.
 5. **Evaluate Model Performance**: Run the `Perf_evaluation.ipynb` notebook to assess the model's performance.
 
+## Citation
+If you use this dataset or code in your research, please cite the following paper:
+
+    @misc{anjum2024advancingdiffusionmodelsaliasfree,
+          title={Advancing Diffusion Models: Alias-Free Resampling and Enhanced Rotational Equivariance}, 
+          author={Md Fahim Anjum},
+          year={2024},
+          eprint={2411.09174},
+          archivePrefix={arXiv},
+          primaryClass={cs.CV},
+          url={https://arxiv.org/abs/2411.09174}, 
+    }
 
 ## Theoretical Foundations
 
