@@ -101,6 +101,18 @@ You can download our datasets directly from [here](https://www.dropbox.com/scl/f
 4. **Inspect Model Details**: Use the `Results.ipynb` notebook to inspect model details, sampling, and denoising processes.
 5. **Evaluate Model Performance**: Run the `Perf_evaluation.ipynb` notebook to assess the model's performance.
 
+## Citation
+If you use this dataset or code in your research, please cite the following paper:
+
+    @misc{anjum2024advancingdiffusionmodelsaliasfree,
+          title={Advancing Diffusion Models: Alias-Free Resampling and Enhanced Rotational Equivariance}, 
+          author={Md Fahim Anjum},
+          year={2024},
+          eprint={2411.09174},
+          archivePrefix={arXiv},
+          primaryClass={cs.CV},
+          url={https://arxiv.org/abs/2411.09174}, 
+    }
 
 ## Theoretical Foundations
 
